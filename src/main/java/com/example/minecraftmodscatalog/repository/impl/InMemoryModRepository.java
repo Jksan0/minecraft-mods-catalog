@@ -2,11 +2,13 @@ package com.example.minecraftmodscatalog.repository.impl;
 
 import com.example.minecraftmodscatalog.entity.Mod;
 import com.example.minecraftmodscatalog.repository.ModRepository;
-import java.util.*;
-import org.springframework.stereotype.Repository;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import org.springframework.stereotype.Repository;
 
 @Repository
 public class InMemoryModRepository implements ModRepository {
@@ -19,19 +21,19 @@ public class InMemoryModRepository implements ModRepository {
     }
 
     @Override
-    public Optional<Mod> findById(Long id) {
+    public Optional<Mod> findById(final Long id) {
         return Optional.ofNullable(storage.get(id));
     }
 
     @Override
-    public List<Mod> findByAuthor(String author) {
+    public List<Mod> findByAuthor(final String author) {
         return storage.values().stream()
                 .filter(mod -> mod.getAuthor().equalsIgnoreCase(author))
                 .toList();
     }
 
     @Override
-    public Mod save(Mod mod) {
+    public Mod save(final Mod mod) {
         if (mod.getId() == null) {
             mod.setId(idGenerator.getAndIncrement());
         }
@@ -40,7 +42,7 @@ public class InMemoryModRepository implements ModRepository {
     }
 
     @Override
-    public void deleteById(Long id) {
+    public void deleteById(final Long id) {
         storage.remove(id);
     }
 }

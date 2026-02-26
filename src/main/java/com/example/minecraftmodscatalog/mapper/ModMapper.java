@@ -3,10 +3,13 @@ package com.example.minecraftmodscatalog.mapper;
 import com.example.minecraftmodscatalog.dto.ModCreateDto;
 import com.example.minecraftmodscatalog.dto.ModDto;
 import com.example.minecraftmodscatalog.entity.Mod;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
-public class ModMapper {
+@NoArgsConstructor(access = AccessLevel.PRIVATE) // Запрет создания экземпляра
+public final class ModMapper {
 
-    public static ModDto toDto(Mod mod) {
+    public static ModDto toDto(final Mod mod) {
         return new ModDto(
                 mod.getId(),
                 mod.getName(),
@@ -17,7 +20,7 @@ public class ModMapper {
         );
     }
 
-    public static Mod toEntity(ModCreateDto dto) {
+    public static Mod toEntity(final ModCreateDto dto) {
         Mod mod = new Mod();
         mod.setName(dto.getName());
         mod.setDescription(dto.getDescription());

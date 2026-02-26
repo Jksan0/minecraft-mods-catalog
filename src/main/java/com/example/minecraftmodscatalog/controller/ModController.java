@@ -1,8 +1,9 @@
 package com.example.minecraftmodscatalog.controller;
 
+import org.springframework.web.bind.annotation.*;
+import com.example.minecraftmodscatalog.dto.ModCreateDto;
 import com.example.minecraftmodscatalog.dto.ModDto;
 import com.example.minecraftmodscatalog.service.ModService;
-import org.springframework.web.bind.annotation.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import java.util.List;
@@ -13,24 +14,24 @@ import java.util.List;
 public class ModController {
     private final ModService modService;
 
-    // GET с @RequestParam: фильтрация по автору
-    // Пример: /api/mods?author=Me
     @GetMapping
-    public ResponseEntity<List<ModDto>> getMods(@RequestParam(required = false) String author) {
-        if (author != null) {
+    public ResponseEntity<List<ModDto>> getMods(@RequestParam(required = false) final String author) {
+        if (author != null && !author.isBlank()) {
             return ResponseEntity.ok(modService.getModsByAuthor(author));
         }
         return ResponseEntity.ok(modService.getAllMods());
     }
 
-    // GET с @PathVariable: получение мода по ID
-    // Пример: /api/mods/1
     @GetMapping("/{id}")
-    public ResponseEntity<ModDto> getModById(@PathVariable Long id) {
+    public ResponseEntity<ModDto> getModById(@PathVariable final Long id) {
         return modService.getModById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // Остальные методы (POST и т.д.) можно добавить позже
+    // Добавим POST, так как в сервисе метод уже есть
+    @PostMapping
+    public ResponseEntity<ModDto> createMod(@RequestBody final ModCreateDto createDto) {
+        return ResponseEntity.status(201).body(modService.createMod(createDto));
+    }
 }

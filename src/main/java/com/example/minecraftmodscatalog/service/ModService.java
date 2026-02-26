@@ -9,5 +9,5 @@ public interface ModService {
     List<ModDto> getAllMods();
     Optional<ModDto> getModById(Long id);
     List<ModDto> getModsByAuthor(String author);
-    ModDto createMod(ModCreateDto createDto); // на будущее
+    ModDto createMod(ModCreateDto createDto);
 }

@@ -13,5 +13,5 @@ public class Mod {
     private String description;
     private String author;
     private String version;
-    private int downloadCount;  // для примера
+    private int downloadCount;
 }

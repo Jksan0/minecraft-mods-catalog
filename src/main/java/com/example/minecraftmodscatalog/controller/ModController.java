@@ -29,7 +29,6 @@ public class ModController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // Добавим POST, так как в сервисе метод уже есть
     @PostMapping
     public ResponseEntity<ModDto> createMod(@RequestBody final ModCreateDto createDto) {
         return ResponseEntity.status(201).body(modService.createMod(createDto));

@@ -6,7 +6,7 @@ import com.example.minecraftmodscatalog.entity.Mod;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-@NoArgsConstructor(access = AccessLevel.PRIVATE) // Запрет создания экземпляра
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ModMapper {
 
     public static ModDto toDto(final Mod mod) {

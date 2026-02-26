@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,7 +20,7 @@ public class ModServiceImpl implements ModService {
     public List<ModDto> getAllMods() {
         return modRepository.findAll().stream()
                 .map(ModMapper::toDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -34,7 +33,7 @@ public class ModServiceImpl implements ModService {
     public List<ModDto> getModsByAuthor(String author) {
         return modRepository.findByAuthor(author).stream()
                 .map(ModMapper::toDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override

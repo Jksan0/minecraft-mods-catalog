@@ -2,8 +2,8 @@ package com.example.minecraftmodscatalog.repository.impl;
 
 import com.example.minecraftmodscatalog.entity.Mod;
 import com.example.minecraftmodscatalog.repository.ModRepository;
-import org.springframework.stereotype.Repository;
 import java.util.*;
+import org.springframework.stereotype.Repository;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -27,7 +27,7 @@ public class InMemoryModRepository implements ModRepository {
     public List<Mod> findByAuthor(String author) {
         return storage.values().stream()
                 .filter(mod -> mod.getAuthor().equalsIgnoreCase(author))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override

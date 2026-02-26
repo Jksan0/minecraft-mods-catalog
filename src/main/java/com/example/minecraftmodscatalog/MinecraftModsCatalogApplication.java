@@ -26,9 +26,6 @@ public class MinecraftModsCatalogApplication {
             repository.save(mod1);
             repository.save(mod2);
             repository.save(mod3);
-
-            // Выводим в лог, что данные добавлены (для проверки)
-            System.out.println(">>> Тестовые моды успешно добавлены в репозиторий!");
         };
     }
 }

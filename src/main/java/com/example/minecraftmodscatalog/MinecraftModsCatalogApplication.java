@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
 public class MinecraftModsCatalogApplication {
-
     public static void main(String[] args) {
         SpringApplication.run(MinecraftModsCatalogApplication.class, args);
     }

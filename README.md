@@ -11,5 +11,7 @@ Spring Boot приложений: слоистая архитектура, ис�
 -Java 25
 
 -Spring Boot 4.0.3 (Web)
+
 -Maven – сборка
+
 -Lombok – генерация кода

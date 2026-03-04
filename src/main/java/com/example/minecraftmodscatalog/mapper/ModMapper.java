@@ -15,8 +15,7 @@ public final class ModMapper {
                 mod.getDescription(),
                 mod.getAuthor(),
                 mod.getVersion(),
-                mod.getDownloadCount()
-        );
+                mod.getDownloadCount());
     }
 
     public static Mod toEntity(final ModCreateDto dto) {

@@ -1,107 +1,178 @@
-﻿# Minecraft Mods Catalog
+# Minecraft Mods Catalog
 
 REST API-каталог модов для Minecraft на Spring Boot.
 
-## О проекте
+## Стек
 
-Проект предоставляет простой HTTP API для:
-- получения списка модов;
-- фильтрации модов по автору;
-- получения мода по `id`;
-- добавления нового мода.
-
-Архитектура: `controller -> service -> repository`, используются DTO и mapper.
-
-## Технологии
-
-- Java 25
+- Java 21
 - Spring Boot 4
+- Spring Data JPA
+- H2 (локальный профиль по умолчанию)
+- PostgreSQL
 - Maven
-- Lombok
-- PostgreSQL (конфигурация есть в `application.properties`)
 
-## Важный нюанс по хранилищу
+## Локальный запуск (по умолчанию)
 
-Сейчас в коде подключен `InMemoryModRepository`, поэтому данные хранятся в памяти приложения и теряются после перезапуска.
-Параметры PostgreSQL в `application.properties` пока не используются текущей реализацией репозитория.
+По умолчанию приложение стартует с профилем `local` и in-memory БД H2.
 
-## Требования
-
-- JDK 25
-- Maven 3.9+ (или Maven Wrapper из проекта)
-
-## Запуск
-
-### Через Maven Wrapper (рекомендуется)
-
-Windows:
-
-```powershell
-.\mvnw.cmd spring-boot:run
-```
-
-Linux/macOS:
+Запуск:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-### Сборка и запуск jar
+Консоль H2:
+
+- `http://localhost:8081/h2-console`
+
+## Настройка PostgreSQL
+
+Для работы с PostgreSQL используйте профиль `postgres`:
 
 ```bash
-./mvnw clean package
-java -jar target/minecraft-mods-catalog-0.0.1-SNAPSHOT.jar
+./mvnw spring-boot:run -Dspring-boot.run.profiles=postgres
 ```
 
-По умолчанию приложение стартует на `http://localhost:8080`.
+Параметры Postgres находятся в `src/main/resources/application-postgres.properties`:
 
-## API
+- `spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/minecraft_mods}`
+- `spring.datasource.username=${DB_USER:postgres}`
+- `spring.datasource.password=${DB_PASSWORD:postgres}`
 
-Базовый путь: `/api/mods`
+Перед запуском создайте БД:
 
-### 1) Получить все моды
-
-```http
-GET /api/mods
+```sql
+create database minecraft_mods;
 ```
 
-### 2) Получить моды по автору
+Быстрый старт через Docker:
 
-```http
-GET /api/mods?author=mezz
+```bash
+docker compose up -d
 ```
 
-### 3) Получить мод по id
+Проверка, что БД готова:
 
-```http
-GET /api/mods/{id}
+```bash
+docker ps
 ```
 
-### 4) Создать мод
+## Модель данных (5 сущностей)
 
-```http
-POST /api/mods
-Content-Type: application/json
-```
+- `Author`
+- `Mod`
+- `ModVersion`
+- `Category`
+- `Tag`
+
+Связи:
+
+- Один-ко-многим: `Author (1) -> (N) Mod`
+- Один-ко-многим: `Mod (1) -> (N) ModVersion`
+- Многие-ко-многим: `Mod (N) <-> (N) Category`
+- Многие-ко-многим: `Mod (N) <-> (N) Tag`
+
+## Решения по CascadeType и FetchType
+
+- `Mod -> ModVersion`: `cascade = CascadeType.ALL`, `orphanRemoval = true`
+  - Причина: версии полностью зависят от жизненного цикла мода.
+- `Mod -> Author` (`ManyToOne`): без cascade, `FetchType.LAZY`
+  - Причина: автор — общая справочная сущность, не должна удаляться/меняться вместе с модом.
+- `Mod -> Category/Tag` (`ManyToMany`): без cascade, `FetchType.LAZY`
+  - Причина: категории и теги — общие справочники.
+- `LAZY` используется, чтобы не загружать весь граф сущностей в каждом запросе.
+
+## Демонстрация N+1 и исправление
+
+Эндпоинты:
+
+- `GET /api/mods/nplus1/naive`
+  - Наивный запрос + ленивые связи в mapper, приводит к N+1.
+- `GET /api/mods/nplus1/entity-graph`
+  - Использует `@EntityGraph(attributePaths = {"author", "categories", "tags", "versions"})`.
+
+Чтобы увидеть разницу в SQL, в `application.properties` включено логирование SQL.
+
+## CRUD
+
+Сущность с полным CRUD: `Mod`
+
+- `POST /api/mods`
+- `GET /api/mods`
+- `GET /api/mods/{id}`
+- `PUT /api/mods/{id}`
+- `DELETE /api/mods/{id}`
+
+Фильтр по автору:
+
+- `GET /api/mods?author=mezz`
+
+## Транзакции (частичное сохранение vs rollback)
+
+Оба метода сохраняют граф связанных сущностей.
+
+- `POST /api/mods/demo/without-transaction`
+  - Метод намеренно бросает исключение после сохранения **без** `@Transactional`.
+  - Результат: часть/все данные остаются в БД при ответе с ошибкой.
+- `POST /api/mods/demo/with-transaction`
+  - Метод намеренно бросает исключение **с** `@Transactional`.
+  - Результат: вся операция откатывается.
 
 Пример тела запроса:
 
 ```json
 {
   "name": "Sodium",
-  "description": "Оптимизация производительности",
-  "author": "jellysquid3",
-  "version": "0.5.0",
-  "downloadCount": 120000
+  "description": "Fast renderer",
+  "authorName": "jellysquid3",
+  "categoryNames": ["Optimization"],
+  "tagNames": ["Fabric", "Popular"],
+  "versions": [
+    {"versionName": "0.5.9", "downloadCount": 200000},
+    {"versionName": "0.6.0", "downloadCount": 250000}
+  ]
 }
 ```
 
-## Стартовые данные
+## ER-диаграмма
 
-При запуске приложение инициализирует несколько модов (`OptiFine`, `JEI`, `Create`) через `CommandLineRunner`.
+```mermaid
+erDiagram
+    AUTHORS ||--o{ MODS : "author_id"
+    MODS ||--o{ MOD_VERSIONS : "mod_id"
+    MODS }o--o{ CATEGORIES : "mod_categories"
+    MODS }o--o{ TAGS : "mod_tags"
 
-## Тесты
-
-```bash
-./mvnw test
+    AUTHORS {
+        bigint id PK
+        varchar name
+    }
+    MODS {
+        bigint id PK
+        varchar name
+        varchar description
+        bigint author_id FK
+    }
+    MOD_VERSIONS {
+        bigint id PK
+        varchar version_name
+        int download_count
+        bigint mod_id FK
+    }
+    CATEGORIES {
+        bigint id PK
+        varchar name
+    }
+    TAGS {
+        bigint id PK
+        varchar name
+    }
+    MOD_CATEGORIES {
+        bigint mod_id FK
+        bigint category_id FK
+    }
+    MOD_TAGS {
+        bigint mod_id FK
+        bigint tag_id FK
+    }
 ```

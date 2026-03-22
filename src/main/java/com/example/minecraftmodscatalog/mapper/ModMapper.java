@@ -1,31 +1,43 @@
 package com.example.minecraftmodscatalog.mapper;
 
-import com.example.minecraftmodscatalog.dto.ModCreateDto;
 import com.example.minecraftmodscatalog.dto.ModDto;
+import com.example.minecraftmodscatalog.dto.ModVersionDto;
 import com.example.minecraftmodscatalog.entity.Mod;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import java.util.Comparator;
+import java.util.List;
 
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ModMapper {
-    public static ModDto toDto(final Mod mod) {
-        return new ModDto(
-                mod.getId(),
-                mod.getName(),
-                mod.getDescription(),
-                mod.getAuthor(),
-                mod.getVersion(),
-                mod.getDownloadCount()
-        );
+    private ModMapper() {
     }
 
-    public static Mod toEntity(final ModCreateDto dto) {
-        Mod mod = new Mod();
-        mod.setName(dto.getName());
-        mod.setDescription(dto.getDescription());
-        mod.setAuthor(dto.getAuthor());
-        mod.setVersion(dto.getVersion());
-        mod.setDownloadCount(dto.getDownloadCount());
-        return mod;
+    public static ModDto toDto(final Mod mod) {
+        ModDto dto = new ModDto();
+        dto.setId(mod.getId());
+        dto.setName(mod.getName());
+        dto.setDescription(mod.getDescription());
+        dto.setAuthorName(mod.getAuthor().getName());
+        dto.setCategories(mod.getCategories().stream()
+                .map(category -> category.getName())
+                .sorted()
+                .toList());
+        dto.setTags(mod.getTags().stream()
+                .map(tag -> tag.getName())
+                .sorted()
+                .toList());
+        dto.setVersions(toVersionDtoList(mod));
+        return dto;
+    }
+
+    private static List<ModVersionDto> toVersionDtoList(final Mod mod) {
+        return mod.getVersions().stream()
+                .sorted(Comparator.comparing(version -> version.getVersionName()))
+                .map(version -> {
+                    ModVersionDto dto = new ModVersionDto();
+                    dto.setId(version.getId());
+                    dto.setVersionName(version.getVersionName());
+                    dto.setDownloadCount(version.getDownloadCount());
+                    return dto;
+                })
+                .toList();
     }
 }

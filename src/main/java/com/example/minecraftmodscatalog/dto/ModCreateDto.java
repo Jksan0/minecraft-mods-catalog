@@ -1,12 +1,15 @@
 package com.example.minecraftmodscatalog.dto;
 
+import java.util.List;
 import lombok.Data;
 
 @Data
 public class ModCreateDto {
     private String name;
     private String description;
-    private String author;
-    private String version;
-    private int downloadCount;
+    private String authorName;
+
+    private List<String> categoryNames;
+    private List<String> tagNames;
+    private List<ModVersionCreateDto> versions;
 }

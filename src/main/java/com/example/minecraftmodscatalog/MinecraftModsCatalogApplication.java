@@ -74,8 +74,8 @@ public class MinecraftModsCatalogApplication {
             jei.setTags(new HashSet<>(Set.of(popular, fabric)));
             jei.getVersions().add(buildVersion("1.20.1", 175000, jei));
 
-            modRepository.save(optifine);
-            modRepository.save(jei);
+            //modRepository.save(optifine);
+            //modRepository.save(jei);
         };
     }
 

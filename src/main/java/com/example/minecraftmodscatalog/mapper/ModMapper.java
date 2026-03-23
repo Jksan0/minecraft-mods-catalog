@@ -4,7 +4,9 @@ import com.example.minecraftmodscatalog.dto.ModDto;
 import com.example.minecraftmodscatalog.dto.ModVersionDto;
 import com.example.minecraftmodscatalog.entity.Mod;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public final class ModMapper {
     private ModMapper() {
@@ -38,6 +40,17 @@ public final class ModMapper {
                     dto.setDownloadCount(version.getDownloadCount());
                     return dto;
                 })
-                .toList();
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toMap(
+                                version -> version.getId() != null
+                                        ? "id:" + version.getId()
+                                        : "name:" + version.getVersionName()
+                                        + "|downloads:" + version.getDownloadCount(),
+                                version -> version,
+                                (first, duplicate) -> first,
+                                LinkedHashMap::new
+                        ),
+                        deduplicated -> List.copyOf(deduplicated.values())
+                ));
     }
 }

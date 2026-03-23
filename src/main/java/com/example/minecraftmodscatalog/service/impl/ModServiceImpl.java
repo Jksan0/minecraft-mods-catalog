@@ -32,7 +32,7 @@ public class ModServiceImpl implements ModService {
     @Override
     @Transactional(readOnly = true)
     public List<ModDto> getAllMods() {
-        return modRepository.findAllWithFetchJoin().stream()
+        return modRepository.findAllWithGraph().stream()
                 .map(ModMapper::toDto)
                 .toList();
     }

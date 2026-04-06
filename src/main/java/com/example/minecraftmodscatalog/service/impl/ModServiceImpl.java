@@ -85,10 +85,16 @@ public class ModServiceImpl implements ModService {
     @Override
     @Transactional
     public void deleteMod(final Long id) {
-        if (!modRepository.existsById(id)) {
-            throw new EntityNotFoundException("Mod not found: " + id);
+        Mod mod = modRepository.findByIdWithGraph(id)
+                .orElseThrow(() -> new EntityNotFoundException("Mod not found: " + id));
+
+        Long authorId = mod.getAuthor().getId();
+        modRepository.delete(mod);
+        modRepository.flush();
+
+        if (!modRepository.existsByAuthorId(authorId)) {
+            authorRepository.deleteById(authorId);
         }
-        modRepository.deleteById(id);
     }
 
     @Override

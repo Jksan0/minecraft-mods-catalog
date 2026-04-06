@@ -2,7 +2,10 @@ package com.example.minecraftmodscatalog.mapper;
 
 import com.example.minecraftmodscatalog.dto.ModDto;
 import com.example.minecraftmodscatalog.dto.ModVersionDto;
+import com.example.minecraftmodscatalog.entity.Category;
 import com.example.minecraftmodscatalog.entity.Mod;
+import com.example.minecraftmodscatalog.entity.ModVersion;
+import com.example.minecraftmodscatalog.entity.Tag;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,11 +22,11 @@ public final class ModMapper {
         dto.setDescription(mod.getDescription());
         dto.setAuthorName(mod.getAuthor().getName());
         dto.setCategories(mod.getCategories().stream()
-                .map(category -> category.getName())
+                .map(Category::getName)
                 .sorted()
                 .toList());
         dto.setTags(mod.getTags().stream()
-                .map(tag -> tag.getName())
+                .map(Tag::getName)
                 .sorted()
                 .toList());
         dto.setVersions(toVersionDtoList(mod));
@@ -32,7 +35,7 @@ public final class ModMapper {
 
     private static List<ModVersionDto> toVersionDtoList(final Mod mod) {
         return mod.getVersions().stream()
-                .sorted(Comparator.comparing(version -> version.getVersionName()))
+                .sorted(Comparator.comparing(ModVersion::getVersionName))
                 .map(version -> {
                     ModVersionDto dto = new ModVersionDto();
                     dto.setId(version.getId());

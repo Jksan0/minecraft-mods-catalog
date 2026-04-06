@@ -23,5 +23,9 @@ public interface ModRepository extends JpaRepository<Mod, Long> {
     @Query("select m from Mod m where m.id = :id")
     Optional<Mod> findByIdWithGraph(@Param("id") Long id);
 
+    boolean existsByNameIgnoreCase(String name);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+
     boolean existsByAuthorId(Long authorId);
 }

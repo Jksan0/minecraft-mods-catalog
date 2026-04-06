@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -21,7 +22,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "mods")
+@Table(
+        name = "mods",
+        uniqueConstraints = @UniqueConstraint(name = "uk_mods_name", columnNames = "name")
+)
 @Getter
 @Setter
 public class Mod {

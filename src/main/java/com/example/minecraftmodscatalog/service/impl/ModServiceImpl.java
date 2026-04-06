@@ -25,6 +25,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class ModServiceImpl implements ModService {
     private static final String MOD_NOT_FOUND_PREFIX = "Mod not found: ";
+    private static final String MOD_NAME_ALREADY_EXISTS_PREFIX = "Mod name already exists: ";
 
     private final ModRepository modRepository;
     private final AuthorRepository authorRepository;
@@ -58,6 +59,7 @@ public class ModServiceImpl implements ModService {
     @Override
     @Transactional
     public ModDto createMod(final ModCreateDto createDto) {
+        validateUniqueNameForCreate(createDto.getName());
         Mod saved = modRepository.save(buildModGraph(createDto));
         return ModMapper.toDto(saved);
     }
@@ -67,6 +69,7 @@ public class ModServiceImpl implements ModService {
     public ModDto updateMod(final Long id, final ModCreateDto updateDto) {
         Mod existing = modRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new EntityNotFoundException(MOD_NOT_FOUND_PREFIX + id));
+        validateUniqueNameForUpdate(id, updateDto.getName());
         existing.setName(updateDto.getName());
         existing.setDescription(updateDto.getDescription());
         existing.setAuthor(resolveAuthor(updateDto.getAuthorName()));
@@ -191,5 +194,17 @@ public class ModServiceImpl implements ModService {
             tags.add(tag);
         }
         return tags;
+    }
+
+    private void validateUniqueNameForCreate(final String name) {
+        if (modRepository.existsByNameIgnoreCase(name)) {
+            throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + name);
+        }
+    }
+
+    private void validateUniqueNameForUpdate(final Long id, final String name) {
+        if (modRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
+            throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + name);
+        }
     }
 }

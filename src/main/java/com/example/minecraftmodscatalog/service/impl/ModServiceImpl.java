@@ -24,6 +24,8 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class ModServiceImpl implements ModService {
+    private static final String MOD_NOT_FOUND_PREFIX = "Mod not found: ";
+
     private final ModRepository modRepository;
     private final AuthorRepository authorRepository;
     private final CategoryRepository categoryRepository;
@@ -50,7 +52,7 @@ public class ModServiceImpl implements ModService {
     public ModDto getModById(final Long id) {
         return modRepository.findByIdWithGraph(id)
                 .map(ModMapper::toDto)
-                .orElseThrow(() -> new EntityNotFoundException("Mod not found: " + id));
+                .orElseThrow(() -> new EntityNotFoundException(MOD_NOT_FOUND_PREFIX + id));
     }
 
     @Override
@@ -64,7 +66,7 @@ public class ModServiceImpl implements ModService {
     @Transactional
     public ModDto updateMod(final Long id, final ModCreateDto updateDto) {
         Mod existing = modRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new EntityNotFoundException("Mod not found: " + id));
+                .orElseThrow(() -> new EntityNotFoundException(MOD_NOT_FOUND_PREFIX + id));
         existing.setName(updateDto.getName());
         existing.setDescription(updateDto.getDescription());
         existing.setAuthor(resolveAuthor(updateDto.getAuthorName()));
@@ -86,7 +88,7 @@ public class ModServiceImpl implements ModService {
     @Transactional
     public void deleteMod(final Long id) {
         Mod mod = modRepository.findByIdWithGraph(id)
-                .orElseThrow(() -> new EntityNotFoundException("Mod not found: " + id));
+                .orElseThrow(() -> new EntityNotFoundException(MOD_NOT_FOUND_PREFIX + id));
 
         Long authorId = mod.getAuthor().getId();
         modRepository.delete(mod);

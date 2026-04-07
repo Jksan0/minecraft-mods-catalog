@@ -111,14 +111,6 @@ public class ModServiceImpl implements ModService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<ModDto> getModsWithEntityGraph() {
-        return modRepository.findAllWithGraph().stream()
-                .map(ModMapper::toDto)
-                .toList();
-    }
-
-    @Override
     public ModDto saveGraphWithoutTransactionAndFail(final ModCreateDto createDto) {
         Mod saved = modRepository.save(buildModGraph(createDto));
         throw new IllegalStateException("Failure without @Transactional. Mod already persisted with id="

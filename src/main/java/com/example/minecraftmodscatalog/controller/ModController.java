@@ -64,11 +64,6 @@ public class ModController {
         return ResponseEntity.ok(modService.getModsNaiveNPlusOne());
     }
 
-    @GetMapping("/nplus1/entity-graph")
-    public ResponseEntity<List<ModDto>> solvedNPlusOne() {
-        return ResponseEntity.ok(modService.getModsWithEntityGraph());
-    }
-
     @PostMapping("/demo/without-transaction")
     public ResponseEntity<TransactionDemoResultDto> withoutTransaction(
             @RequestBody final ModCreateDto createDto

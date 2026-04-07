@@ -12,7 +12,6 @@ public interface ModService {
     ModDto updateMod(Long id, ModCreateDto updateDto);
     void deleteMod(Long id);
     List<ModDto> getModsNaiveNPlusOne();
-    List<ModDto> getModsWithEntityGraph();
     ModDto saveGraphWithoutTransactionAndFail(ModCreateDto createDto);
     ModDto saveGraphWithTransactionAndFail(ModCreateDto createDto);
 }

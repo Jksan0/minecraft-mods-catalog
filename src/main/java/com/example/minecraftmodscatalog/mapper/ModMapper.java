@@ -2,7 +2,6 @@ package com.example.minecraftmodscatalog.mapper;
 
 import com.example.minecraftmodscatalog.dto.ModDto;
 import com.example.minecraftmodscatalog.dto.ModVersionDto;
-import com.example.minecraftmodscatalog.entity.Category;
 import com.example.minecraftmodscatalog.entity.Mod;
 import com.example.minecraftmodscatalog.entity.ModVersion;
 import com.example.minecraftmodscatalog.entity.Tag;
@@ -21,10 +20,7 @@ public final class ModMapper {
         dto.setName(mod.getName());
         dto.setDescription(mod.getDescription());
         dto.setAuthorName(mod.getAuthor().getName());
-        dto.setCategories(mod.getCategories().stream()
-                .map(Category::getName)
-                .sorted()
-                .toList());
+        dto.setCategoryName(mod.getCategory().getName());
         dto.setTags(mod.getTags().stream()
                 .map(Tag::getName)
                 .sorted()

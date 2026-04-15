@@ -9,7 +9,7 @@ public class ModDto {
     private String name;
     private String description;
     private String authorName;
-    private List<String> categories;
+    private String categoryName;
     private List<String> tags;
     private List<ModVersionDto> versions;
 }

@@ -8,6 +8,7 @@ public class ModCreateDto {
     private String name;
     private String description;
     private String authorName;
+    private String categoryName;
     private List<String> categoryNames;
     private List<String> tagNames;
     private List<ModVersionCreateDto> versions;

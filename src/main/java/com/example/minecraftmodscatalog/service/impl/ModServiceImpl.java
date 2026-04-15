@@ -15,6 +15,7 @@ import com.example.minecraftmodscatalog.repository.TagRepository;
 import com.example.minecraftmodscatalog.service.ModService;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.HashSet;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,6 +67,36 @@ public class ModServiceImpl implements ModService {
 
     @Override
     @Transactional
+    public List<ModDto> createMods(final List<ModCreateDto> createDtos) {
+        return createModsInternal(createDtos);
+    }
+
+    @Override
+    public List<ModDto> createModsWithoutTransaction(final List<ModCreateDto> createDtos) {
+        if (createDtos == null || createDtos.isEmpty()) {
+            throw new IllegalArgumentException("Request body must contain at least one mod");
+        }
+
+        Set<String> batchNames = new HashSet<>();
+        List<ModDto> created = new java.util.ArrayList<>();
+        for (ModCreateDto createDto : createDtos) {
+            if (createDto == null || createDto.getName() == null || createDto.getName().isBlank()) {
+                throw new IllegalArgumentException("Mod name is required");
+            }
+            String normalizedName = createDto.getName().toLowerCase(Locale.ROOT);
+            if (!batchNames.add(normalizedName)) {
+                throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + createDto.getName());
+            }
+
+            validateUniqueNameForCreate(createDto.getName());
+            Mod saved = modRepository.save(buildModGraph(createDto));
+            created.add(ModMapper.toDto(saved));
+        }
+        return created;
+    }
+
+    @Override
+    @Transactional
     public ModDto updateMod(final Long id, final ModCreateDto updateDto) {
         Mod existing = modRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new EntityNotFoundException(MOD_NOT_FOUND_PREFIX + id));
@@ -73,7 +104,7 @@ public class ModServiceImpl implements ModService {
         existing.setName(updateDto.getName());
         existing.setDescription(updateDto.getDescription());
         existing.setAuthor(resolveAuthor(updateDto.getAuthorName()));
-        existing.setCategories(resolveCategories(updateDto.getCategoryNames()));
+        existing.setCategory(resolveCategory(extractCategoryName(updateDto)));
         existing.setTags(resolveTags(updateDto.getTagNames()));
 
         existing.getVersions().clear();
@@ -90,11 +121,13 @@ public class ModServiceImpl implements ModService {
     @Override
     @Transactional
     public void deleteMod(final Long id) {
-        Mod mod = modRepository.findByIdWithGraph(id)
+        Mod mod = modRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(MOD_NOT_FOUND_PREFIX + id));
 
         Long authorId = mod.getAuthor().getId();
-        modRepository.delete(mod);
+        modRepository.deleteTagLinksByModId(id);
+        modRepository.deleteVersionsByModId(id);
+        modRepository.deleteById(id);
         modRepository.flush();
 
         if (!modRepository.existsByAuthorId(authorId)) {
@@ -110,29 +143,12 @@ public class ModServiceImpl implements ModService {
                 .toList();
     }
 
-    @Override
-    public ModDto saveGraphWithoutTransactionAndFail(final ModCreateDto createDto) {
-        Mod saved = modRepository.save(buildModGraph(createDto));
-        throw new IllegalStateException("Failure without @Transactional. Mod already persisted with id="
-                + saved.getId());
-    }
-
-    @Override
-    @Transactional
-    public ModDto saveGraphWithTransactionAndFail(final ModCreateDto createDto) {
-        Mod saved = modRepository.save(buildModGraph(createDto));
-        if (!saved.getVersions().isEmpty()) {
-            throw new IllegalStateException("Failure inside @Transactional. Full rollback expected.");
-        }
-        return ModMapper.toDto(saved);
-    }
-
     private Mod buildModGraph(final ModCreateDto createDto) {
         Mod mod = new Mod();
         mod.setName(createDto.getName());
         mod.setDescription(createDto.getDescription());
         mod.setAuthor(resolveAuthor(createDto.getAuthorName()));
-        mod.setCategories(resolveCategories(createDto.getCategoryNames()));
+        mod.setCategory(resolveCategory(extractCategoryName(createDto)));
         mod.setTags(resolveTags(createDto.getTagNames()));
 
         for (var versionDto : createDto.getVersions()) {
@@ -154,21 +170,23 @@ public class ModServiceImpl implements ModService {
                 });
     }
 
-    private Set<Category> resolveCategories(final List<String> categoryNames) {
-        Set<Category> categories = new HashSet<>();
-        if (categoryNames == null) {
-            return categories;
+    private Category resolveCategory(final String categoryName) {
+        return categoryRepository.findByNameIgnoreCase(categoryName)
+                .orElseGet(() -> {
+                    Category category = new Category();
+                    category.setName(categoryName);
+                    return categoryRepository.save(category);
+                });
+    }
+
+    private String extractCategoryName(final ModCreateDto dto) {
+        if (dto.getCategoryName() != null && !dto.getCategoryName().isBlank()) {
+            return dto.getCategoryName();
         }
-        for (String categoryName : categoryNames) {
-            Category category = categoryRepository.findByNameIgnoreCase(categoryName)
-                    .orElseGet(() -> {
-                        Category newCategory = new Category();
-                        newCategory.setName(categoryName);
-                        return categoryRepository.save(newCategory);
-                    });
-            categories.add(category);
+        if (dto.getCategoryNames() != null && !dto.getCategoryNames().isEmpty()) {
+            return dto.getCategoryNames().getFirst();
         }
-        return categories;
+        throw new IllegalArgumentException("Category is required");
     }
 
     private Set<Tag> resolveTags(final List<String> tagNames) {
@@ -186,6 +204,31 @@ public class ModServiceImpl implements ModService {
             tags.add(tag);
         }
         return tags;
+    }
+
+    private List<ModDto> createModsInternal(final List<ModCreateDto> createDtos) {
+        if (createDtos == null || createDtos.isEmpty()) {
+            throw new IllegalArgumentException("Request body must contain at least one mod");
+        }
+
+        Set<String> batchNames = new HashSet<>();
+        for (ModCreateDto createDto : createDtos) {
+            if (createDto == null || createDto.getName() == null || createDto.getName().isBlank()) {
+                throw new IllegalArgumentException("Mod name is required");
+            }
+            String normalizedName = createDto.getName().toLowerCase(Locale.ROOT);
+            if (!batchNames.add(normalizedName)) {
+                throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + createDto.getName());
+            }
+            validateUniqueNameForCreate(createDto.getName());
+        }
+
+        return modRepository.saveAll(createDtos.stream()
+                        .map(this::buildModGraph)
+                        .toList())
+                .stream()
+                .map(ModMapper::toDto)
+                .toList();
     }
 
     private void validateUniqueNameForCreate(final String name) {

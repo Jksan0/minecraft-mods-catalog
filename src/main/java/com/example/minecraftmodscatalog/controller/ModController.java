@@ -2,7 +2,6 @@ package com.example.minecraftmodscatalog.controller;
 
 import com.example.minecraftmodscatalog.dto.ModCreateDto;
 import com.example.minecraftmodscatalog.dto.ModDto;
-import com.example.minecraftmodscatalog.dto.TransactionDemoResultDto;
 import com.example.minecraftmodscatalog.service.ModService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -40,8 +39,8 @@ public class ModController {
     }
 
     @PostMapping
-    public ResponseEntity<ModDto> createMod(@RequestBody final ModCreateDto createDto) {
-        return ResponseEntity.status(201).body(modService.createMod(createDto));
+    public ResponseEntity<List<ModDto>> createMods(@RequestBody final List<ModCreateDto> createDtos) {
+        return ResponseEntity.status(201).body(modService.createMods(createDtos));
     }
 
     @PutMapping("/{id}")
@@ -64,29 +63,10 @@ public class ModController {
     }
 
     @PostMapping("/demo/without-transaction")
-    public ResponseEntity<TransactionDemoResultDto> withoutTransaction(
-            @RequestBody final ModCreateDto createDto
+    public ResponseEntity<List<ModDto>> withoutTransaction(
+            @RequestBody final List<ModCreateDto> createDtos
     ) {
-        try {
-            modService.saveGraphWithoutTransactionAndFail(createDto);
-            return ResponseEntity.ok(new TransactionDemoResultDto(true, "without-transaction", "No error happened"));
-        } catch (RuntimeException ex) {
-            return ResponseEntity.internalServerError()
-                    .body(new TransactionDemoResultDto(false, "without-transaction", ex.getMessage()));
-        }
-    }
-
-    @PostMapping("/demo/with-transaction")
-    public ResponseEntity<TransactionDemoResultDto> withTransaction(
-            @RequestBody final ModCreateDto createDto
-    ) {
-        try {
-            modService.saveGraphWithTransactionAndFail(createDto);
-            return ResponseEntity.ok(new TransactionDemoResultDto(true, "with-transaction", "No error happened"));
-        } catch (RuntimeException ex) {
-            return ResponseEntity.internalServerError()
-                    .body(new TransactionDemoResultDto(false, "with-transaction", ex.getMessage()));
-        }
+        return ResponseEntity.status(201).body(modService.createModsWithoutTransaction(createDtos));
     }
 
     @ExceptionHandler(EntityNotFoundException.class)

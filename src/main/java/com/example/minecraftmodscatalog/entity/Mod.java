@@ -15,9 +15,9 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.HashSet;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -43,16 +43,12 @@ public class Mod {
     @JoinColumn(name = "author_id", nullable = false)
     private Author author;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
+
     @OneToMany(mappedBy = "mod", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ModVersion> versions = new ArrayList<>();
-
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "mod_categories",
-            joinColumns = @JoinColumn(name = "mod_id"),
-            inverseJoinColumns = @JoinColumn(name = "category_id")
-    )
-    private Set<Category> categories = new HashSet<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

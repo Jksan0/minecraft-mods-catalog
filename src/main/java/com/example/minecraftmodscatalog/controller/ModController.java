@@ -3,12 +3,9 @@ package com.example.minecraftmodscatalog.controller;
 import com.example.minecraftmodscatalog.dto.ModCreateDto;
 import com.example.minecraftmodscatalog.dto.ModDto;
 import com.example.minecraftmodscatalog.service.ModService;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -67,15 +64,5 @@ public class ModController {
             @RequestBody final List<ModCreateDto> createDtos
     ) {
         return ResponseEntity.status(201).body(modService.createModsWithoutTransaction(createDtos));
-    }
-
-    @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<String> handleNotFound(EntityNotFoundException ex) {
-        return ResponseEntity.notFound().build();
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleDuplicateModName(final IllegalArgumentException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
     }
 }

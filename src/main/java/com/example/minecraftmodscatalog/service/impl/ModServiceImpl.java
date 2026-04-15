@@ -60,6 +60,7 @@ public class ModServiceImpl implements ModService {
     @Override
     @Transactional
     public ModDto createMod(final ModCreateDto createDto) {
+        validateModPayload(createDto);
         validateUniqueNameForCreate(createDto.getName());
         Mod saved = modRepository.save(buildModGraph(createDto));
         return ModMapper.toDto(saved);
@@ -80,9 +81,7 @@ public class ModServiceImpl implements ModService {
         Set<String> batchNames = new HashSet<>();
         List<ModDto> created = new java.util.ArrayList<>();
         for (ModCreateDto createDto : createDtos) {
-            if (createDto == null || createDto.getName() == null || createDto.getName().isBlank()) {
-                throw new IllegalArgumentException("Mod name is required");
-            }
+            validateModPayload(createDto);
             String normalizedName = createDto.getName().toLowerCase(Locale.ROOT);
             if (!batchNames.add(normalizedName)) {
                 throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + createDto.getName());
@@ -100,6 +99,7 @@ public class ModServiceImpl implements ModService {
     public ModDto updateMod(final Long id, final ModCreateDto updateDto) {
         Mod existing = modRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new EntityNotFoundException(MOD_NOT_FOUND_PREFIX + id));
+        validateModPayload(updateDto);
         validateUniqueNameForUpdate(id, updateDto.getName());
         existing.setName(updateDto.getName());
         existing.setDescription(updateDto.getDescription());
@@ -213,9 +213,7 @@ public class ModServiceImpl implements ModService {
 
         Set<String> batchNames = new HashSet<>();
         for (ModCreateDto createDto : createDtos) {
-            if (createDto == null || createDto.getName() == null || createDto.getName().isBlank()) {
-                throw new IllegalArgumentException("Mod name is required");
-            }
+            validateModPayload(createDto);
             String normalizedName = createDto.getName().toLowerCase(Locale.ROOT);
             if (!batchNames.add(normalizedName)) {
                 throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + createDto.getName());
@@ -240,6 +238,36 @@ public class ModServiceImpl implements ModService {
     private void validateUniqueNameForUpdate(final Long id, final String name) {
         if (modRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
             throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + name);
+        }
+    }
+
+    private void validateModPayload(final ModCreateDto dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Request body is required");
+        }
+        if (dto.getName() == null || dto.getName().isBlank()) {
+            throw new IllegalArgumentException("Mod name is required");
+        }
+        if (dto.getDescription() == null || dto.getDescription().isBlank()) {
+            throw new IllegalArgumentException("Mod description is required");
+        }
+        if (dto.getAuthorName() == null || dto.getAuthorName().isBlank()) {
+            throw new IllegalArgumentException("Author name is required");
+        }
+        String categoryName = extractCategoryName(dto);
+        if (categoryName == null || categoryName.isBlank()) {
+            throw new IllegalArgumentException("Category is required");
+        }
+        if (dto.getVersions() == null || dto.getVersions().isEmpty()) {
+            throw new IllegalArgumentException("At least one mod version is required");
+        }
+        for (var version : dto.getVersions()) {
+            if (version == null || version.getVersionName() == null || version.getVersionName().isBlank()) {
+                throw new IllegalArgumentException("Version name is required");
+            }
+            if (version.getDownloadCount() < 0) {
+                throw new IllegalArgumentException("Version downloadCount must be non-negative");
+            }
         }
     }
 }

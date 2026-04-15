@@ -1,0 +1,9 @@
+package com.example.minecraftmodscatalog.dto;
+
+import lombok.Data;
+
+@Data
+public class AuthorDto {
+    private Long id;
+    private String name;
+}

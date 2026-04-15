@@ -30,6 +30,10 @@ public interface ModRepository extends JpaRepository<Mod, Long> {
 
     boolean existsByAuthorId(Long authorId);
 
+    boolean existsByCategoryId(Long categoryId);
+
+    boolean existsByTagsId(Long tagId);
+
     @Modifying
     @Query(value = "delete from mod_tags where mod_id = :modId", nativeQuery = true)
     void deleteTagLinksByModId(@Param("modId") Long modId);

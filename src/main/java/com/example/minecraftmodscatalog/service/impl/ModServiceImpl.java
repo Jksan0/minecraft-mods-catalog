@@ -2,6 +2,7 @@ package com.example.minecraftmodscatalog.service.impl;
 
 import com.example.minecraftmodscatalog.dto.ModCreateDto;
 import com.example.minecraftmodscatalog.dto.ModDto;
+import com.example.minecraftmodscatalog.dto.ModVersionCreateDto;
 import com.example.minecraftmodscatalog.entity.Mod;
 import com.example.minecraftmodscatalog.entity.ModVersion;
 import com.example.minecraftmodscatalog.entity.Author;
@@ -242,32 +243,41 @@ public class ModServiceImpl implements ModService {
     }
 
     private void validateModPayload(final ModCreateDto dto) {
+        validateDtoPresence(dto);
+        validateRequiredText(dto.getName(), "Mod name is required");
+        validateRequiredText(dto.getDescription(), "Mod description is required");
+        validateRequiredText(dto.getAuthorName(), "Author name is required");
+        validateRequiredText(extractCategoryName(dto), "Category is required");
+        validateVersions(dto);
+    }
+
+    private void validateDtoPresence(final ModCreateDto dto) {
         if (dto == null) {
             throw new IllegalArgumentException("Request body is required");
         }
-        if (dto.getName() == null || dto.getName().isBlank()) {
-            throw new IllegalArgumentException("Mod name is required");
+    }
+
+    private void validateRequiredText(final String value, final String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
         }
-        if (dto.getDescription() == null || dto.getDescription().isBlank()) {
-            throw new IllegalArgumentException("Mod description is required");
-        }
-        if (dto.getAuthorName() == null || dto.getAuthorName().isBlank()) {
-            throw new IllegalArgumentException("Author name is required");
-        }
-        String categoryName = extractCategoryName(dto);
-        if (categoryName == null || categoryName.isBlank()) {
-            throw new IllegalArgumentException("Category is required");
-        }
+    }
+
+    private void validateVersions(final ModCreateDto dto) {
         if (dto.getVersions() == null || dto.getVersions().isEmpty()) {
             throw new IllegalArgumentException("At least one mod version is required");
         }
         for (var version : dto.getVersions()) {
-            if (version == null || version.getVersionName() == null || version.getVersionName().isBlank()) {
-                throw new IllegalArgumentException("Version name is required");
-            }
-            if (version.getDownloadCount() < 0) {
-                throw new IllegalArgumentException("Version downloadCount must be non-negative");
-            }
+            validateVersion(version);
+        }
+    }
+
+    private void validateVersion(final ModVersionCreateDto version) {
+        if (version == null || version.getVersionName() == null || version.getVersionName().isBlank()) {
+            throw new IllegalArgumentException("Version name is required");
+        }
+        if (version.getDownloadCount() < 0) {
+            throw new IllegalArgumentException("Version downloadCount must be non-negative");
         }
     }
 }

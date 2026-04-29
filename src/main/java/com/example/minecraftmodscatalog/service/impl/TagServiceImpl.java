@@ -70,10 +70,8 @@ public class TagServiceImpl implements TagService {
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(TAG_NOT_FOUND_PREFIX + id));
 
-        // Remove this tag from all mods that use it
         modRepository.findAll().forEach(mod -> mod.getTags().remove(tag));
         modRepository.flush();
-
         tagRepository.deleteById(id);
     }
 

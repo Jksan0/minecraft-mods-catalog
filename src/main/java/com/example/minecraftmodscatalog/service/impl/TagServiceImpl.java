@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class TagServiceImpl implements TagService {
     private static final String TAG_NOT_FOUND_PREFIX = "Tag not found: ";
     private static final String TAG_NAME_ALREADY_EXISTS_PREFIX = "Tag name already exists: ";
-    private static final String TAG_IS_USED_PREFIX = "Cannot delete tag, it is used by mods: ";
 
     private final TagRepository tagRepository;
     private final ModRepository modRepository;
@@ -68,12 +67,13 @@ public class TagServiceImpl implements TagService {
     @Override
     @Transactional
     public void deleteTag(final Long id) {
-        if (!tagRepository.existsById(id)) {
-            throw new EntityNotFoundException(TAG_NOT_FOUND_PREFIX + id);
-        }
-        if (modRepository.existsByTagsId(id)) {
-            throw new IllegalStateException(TAG_IS_USED_PREFIX + id);
-        }
+        Tag tag = tagRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException(TAG_NOT_FOUND_PREFIX + id));
+
+        // Remove this tag from all mods that use it
+        modRepository.findAll().forEach(mod -> mod.getTags().remove(tag));
+        modRepository.flush();
+
         tagRepository.deleteById(id);
     }
 

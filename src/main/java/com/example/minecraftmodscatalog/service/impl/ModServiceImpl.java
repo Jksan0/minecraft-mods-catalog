@@ -16,12 +16,19 @@ import com.example.minecraftmodscatalog.repository.TagRepository;
 import com.example.minecraftmodscatalog.service.ModService;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +40,8 @@ public class ModServiceImpl implements ModService {
     private final AuthorRepository authorRepository;
     private final CategoryRepository categoryRepository;
     private final TagRepository tagRepository;
+
+    private final Map<ModFilterCacheKey, Page<ModDto>> modFilterCache = new HashMap<>();
 
     @Override
     @Transactional(readOnly = true)
@@ -64,6 +73,7 @@ public class ModServiceImpl implements ModService {
         validateModPayload(createDto);
         validateUniqueNameForCreate(createDto.getName());
         Mod saved = modRepository.save(buildModGraph(createDto));
+        modFilterCache.clear();
         return ModMapper.toDto(saved);
     }
 
@@ -92,6 +102,7 @@ public class ModServiceImpl implements ModService {
             Mod saved = modRepository.save(buildModGraph(createDto));
             created.add(ModMapper.toDto(saved));
         }
+        modFilterCache.clear();
         return created;
     }
 
@@ -116,7 +127,9 @@ public class ModServiceImpl implements ModService {
             version.setMod(existing);
             existing.getVersions().add(version);
         }
-        return ModMapper.toDto(modRepository.save(existing));
+        ModDto result = ModMapper.toDto(modRepository.save(existing));
+        modFilterCache.clear();
+        return result;
     }
 
     @Override
@@ -134,6 +147,7 @@ public class ModServiceImpl implements ModService {
         if (!modRepository.existsByAuthorId(authorId)) {
             authorRepository.deleteById(authorId);
         }
+        modFilterCache.clear();
     }
 
     @Override
@@ -142,6 +156,85 @@ public class ModServiceImpl implements ModService {
         return modRepository.findAllNaiveForNPlusOne().stream()
                 .map(ModMapper::toDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ModDto> getModsWithFilters(String authorName, String categoryName,
+                                           List<String> tagNames, boolean useNative, Pageable pageable) {
+        ModFilterCacheKey key = buildKey(authorName, categoryName, tagNames, useNative, pageable);
+        Page<ModDto> cached = modFilterCache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        List<String> queryTagNames = key.tagNames().isEmpty() ? null : key.tagNames();
+        long tagCount = key.tagNames().size();
+        Page<Long> idPage = useNative
+                ? modRepository
+                .findModIdsWithFiltersNative(key.authorName(), key.categoryName(), queryTagNames, tagCount, pageable)
+                : modRepository
+                .findModIdsWithFiltersJpql(key.authorName(), key.categoryName(), queryTagNames, tagCount, pageable);
+
+        if (idPage.isEmpty()) {
+            Page<ModDto> emptyPage = new PageImpl<>(List.of(), pageable, idPage.getTotalElements());
+            modFilterCache.put(key, emptyPage);
+            return emptyPage;
+        }
+
+        List<Long> ids = idPage.getContent();
+        Map<Long, Mod> byId = modRepository.findAllWithGraphByIdIn(ids).stream()
+                .collect(java.util.stream.Collectors
+                        .toMap(Mod::getId, mod -> mod, (left, right) -> left, LinkedHashMap::new));
+        List<ModDto> content = ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(ModMapper::toDto)
+                .toList();
+        Page<ModDto> dtoPage = new PageImpl<>(content, pageable, idPage.getTotalElements());
+        modFilterCache.put(key, dtoPage);
+        return dtoPage;
+    }
+
+    private ModFilterCacheKey buildKey(String authorName, String categoryName, List<String> tagNames,
+                                       boolean useNative, Pageable pageable) {
+        String normalizedAuthorName = normalizeNullable(authorName);
+        String normalizedCategoryName = normalizeNullable(categoryName);
+        List<String> normalizedTags = normalizeTags(tagNames);
+        return new ModFilterCacheKey(normalizedAuthorName, normalizedCategoryName, normalizedTags, useNative,
+                pageable.getPageNumber(), pageable.getPageSize(), pageable.getSort().toString());
+    }
+
+    private List<String> normalizeTags(List<String> tagNames) {
+        if (tagNames == null || tagNames.isEmpty()) {
+            return List.of();
+        }
+        return tagNames.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(tag -> !tag.isBlank())
+                .map(tag -> tag.toLowerCase(Locale.ROOT))
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private record ModFilterCacheKey(
+            String authorName,
+            String categoryName,
+            List<String> tagNames,
+            boolean useNative,
+            int pageNumber,
+            int pageSize,
+            String sort
+    ) {
     }
 
     private Mod buildModGraph(final ModCreateDto createDto) {
@@ -222,12 +315,14 @@ public class ModServiceImpl implements ModService {
             validateUniqueNameForCreate(createDto.getName());
         }
 
-        return modRepository.saveAll(createDtos.stream()
+        List<ModDto> result = modRepository.saveAll(createDtos.stream()
                         .map(this::buildModGraph)
                         .toList())
                 .stream()
                 .map(ModMapper::toDto)
                 .toList();
+        modFilterCache.clear();
+        return result;
     }
 
     private void validateUniqueNameForCreate(final String name) {

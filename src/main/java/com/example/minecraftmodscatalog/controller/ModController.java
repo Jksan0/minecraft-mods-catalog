@@ -4,6 +4,8 @@ import com.example.minecraftmodscatalog.dto.ModCreateDto;
 import com.example.minecraftmodscatalog.dto.ModDto;
 import com.example.minecraftmodscatalog.service.ModService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -57,6 +59,18 @@ public class ModController {
     @GetMapping("/nplus1/naive")
     public ResponseEntity<List<ModDto>> naiveNPlusOne() {
         return ResponseEntity.ok(modService.getModsNaiveNPlusOne());
+    }
+
+    @GetMapping("/filtered")
+    public ResponseEntity<Page<ModDto>> getModsWithFilters(
+            @RequestParam(required = false) String authorName,
+            @RequestParam(required = false) String categoryName,
+            @RequestParam(required = false) List<String> tagNames,
+            @RequestParam(defaultValue = "false") boolean useNative,
+            Pageable pageable
+    ) {
+        return ResponseEntity
+                .ok(modService.getModsWithFilters(authorName, categoryName, tagNames, useNative, pageable));
     }
 
     @PostMapping("/demo/without-transaction")

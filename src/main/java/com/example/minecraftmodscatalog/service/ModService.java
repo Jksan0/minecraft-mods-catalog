@@ -3,6 +3,8 @@ package com.example.minecraftmodscatalog.service;
 import com.example.minecraftmodscatalog.dto.ModCreateDto;
 import com.example.minecraftmodscatalog.dto.ModDto;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface ModService {
     List<ModDto> getAllMods();
@@ -14,4 +16,6 @@ public interface ModService {
     ModDto updateMod(Long id, ModCreateDto updateDto);
     void deleteMod(Long id);
     List<ModDto> getModsNaiveNPlusOne();
+    Page<ModDto> getModsWithFilters(String authorName, String categoryName, List<String> tagNames,
+                                    boolean useNative, Pageable pageable);
 }

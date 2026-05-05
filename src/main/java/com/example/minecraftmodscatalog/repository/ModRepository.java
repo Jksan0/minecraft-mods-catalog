@@ -3,6 +3,8 @@ package com.example.minecraftmodscatalog.repository;
 import com.example.minecraftmodscatalog.entity.Mod;
 import java.util.Optional;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,6 +25,49 @@ public interface ModRepository extends JpaRepository<Mod, Long> {
     @EntityGraph(attributePaths = {"author", "category", "tags", "versions"})
     @Query("select m from Mod m where m.id = :id")
     Optional<Mod> findByIdWithGraph(@Param("id") Long id);
+
+    @Query("select m.id from Mod m join m.author a join m.category c left join m.tags t " +
+           "where (:authorName is null or lower(a.name) = :authorName) " +
+           "and (:categoryName is null or lower(c.name) = :categoryName) " +
+           "and (:tagNames is null or lower(t.name) in :tagNames) " +
+           "group by m.id " +
+           "having (:tagNames is null or count(distinct t.id) = :tagCount)")
+    Page<Long> findModIdsWithFiltersJpql(@Param("authorName") String authorName,
+                                         @Param("categoryName") String categoryName,
+                                         @Param("tagNames") List<String> tagNames,
+                                         @Param("tagCount") long tagCount,
+                                         Pageable pageable);
+
+    @Query(value = "select distinct m.id from mods m " +
+                   "join authors a on m.author_id = a.id " +
+                   "join categories c on m.category_id = c.id " +
+                   "left join mod_tags mt on m.id = mt.mod_id " +
+                   "left join tags t on mt.tag_id = t.id " +
+                   "where (:authorName is null or lower(a.name) = :authorName) " +
+                   "and (:categoryName is null or lower(c.name) = :categoryName) " +
+                   "and (:tagNames is null or lower(t.name) in :tagNames) " +
+                   "group by m.id, a.id, c.id " +
+                   "having (:tagNames is null or count(distinct t.id) = :tagCount)",
+           countQuery = "select count(distinct m.id) from mods m " +
+                        "join authors a on m.author_id = a.id " +
+                        "join categories c on m.category_id = c.id " +
+                        "left join mod_tags mt on m.id = mt.mod_id " +
+                        "left join tags t on mt.tag_id = t.id " +
+                        "where (:authorName is null or lower(a.name) = :authorName) " +
+                        "and (:categoryName is null or lower(c.name) = :categoryName) " +
+                        "and (:tagNames is null or lower(t.name) in :tagNames) " +
+                        "group by m.id " +
+                        "having (:tagNames is null or count(distinct t.id) = :tagCount)",
+           nativeQuery = true)
+    Page<Long> findModIdsWithFiltersNative(@Param("authorName") String authorName,
+                                           @Param("categoryName") String categoryName,
+                                           @Param("tagNames") List<String> tagNames,
+                                           @Param("tagCount") long tagCount,
+                                           Pageable pageable);
+
+    @EntityGraph(attributePaths = {"author", "category", "tags", "versions"})
+    @Query("select distinct m from Mod m where m.id in :ids")
+    List<Mod> findAllWithGraphByIdIn(@Param("ids") List<Long> ids);
 
     boolean existsByNameIgnoreCase(String name);
 

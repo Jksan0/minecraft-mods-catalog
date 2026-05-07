@@ -67,6 +67,21 @@ public interface ModRepository extends JpaRepository<Mod, Long> {
                                            @Param("tagCount") long tagCount,
                                            Pageable pageable);
 
+    @Query(value = "select m.id from mods m " +
+                   "join authors a on m.author_id = a.id " +
+                   "join categories c on m.category_id = c.id " +
+                   "where (:authorName is null or lower(a.name) = :authorName) " +
+                   "and (:categoryName is null or lower(c.name) = :categoryName)",
+           countQuery = "select count(*) from mods m " +
+                        "join authors a on m.author_id = a.id " +
+                        "join categories c on m.category_id = c.id " +
+                        "where (:authorName is null or lower(a.name) = :authorName) " +
+                        "and (:categoryName is null or lower(c.name) = :categoryName)",
+           nativeQuery = true)
+    Page<Long> findModIdsWithFiltersNativeWithoutTags(@Param("authorName") String authorName,
+                                                      @Param("categoryName") String categoryName,
+                                                      Pageable pageable);
+
     @EntityGraph(attributePaths = {"author", "category", "tags", "versions"})
     @Query("select distinct m from Mod m where m.id in :ids")
     List<Mod> findAllWithGraphByIdIn(@Param("ids") List<Long> ids);

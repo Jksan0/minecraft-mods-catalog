@@ -16,6 +16,8 @@ public interface ModService {
     ModDto updateMod(Long id, ModCreateDto updateDto);
     void deleteMod(Long id);
     List<ModDto> getModsNaiveNPlusOne();
-    Page<ModDto> getModsWithFilters(String authorName, String categoryName, List<String> tagNames,
-                                    boolean useNative, Pageable pageable);
+    Page<ModDto> getModsWithFiltersJpql(String authorName, String categoryName, List<String> tagNames,
+                                        Pageable pageable);
+    Page<ModDto> getModsWithFiltersNative(String authorName, String categoryName, List<String> tagNames,
+                                          Pageable pageable);
 }

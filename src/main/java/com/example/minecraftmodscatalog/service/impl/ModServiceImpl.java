@@ -160,8 +160,20 @@ public class ModServiceImpl implements ModService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ModDto> getModsWithFilters(String authorName, String categoryName,
-                                           List<String> tagNames, boolean useNative, Pageable pageable) {
+    public Page<ModDto> getModsWithFiltersJpql(String authorName, String categoryName,
+                                               List<String> tagNames, Pageable pageable) {
+        return getModsWithFiltersInternal(authorName, categoryName, tagNames, false, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ModDto> getModsWithFiltersNative(String authorName, String categoryName,
+                                                 List<String> tagNames, Pageable pageable) {
+        return getModsWithFiltersInternal(authorName, categoryName, tagNames, true, pageable);
+    }
+
+    private Page<ModDto> getModsWithFiltersInternal(String authorName, String categoryName,
+                                                    List<String> tagNames, boolean useNative, Pageable pageable) {
         ModFilterCacheKey key = buildKey(authorName, categoryName, tagNames, useNative, pageable);
         Page<ModDto> cached = modFilterCache.get(key);
         if (cached != null) {

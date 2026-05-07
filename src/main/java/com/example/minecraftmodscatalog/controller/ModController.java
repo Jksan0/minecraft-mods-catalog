@@ -62,12 +62,11 @@ public class ModController {
         return ResponseEntity.ok(modService.getModsNaiveNPlusOne());
     }
 
-    @GetMapping("/filtered")
-    public ResponseEntity<Page<ModDto>> getModsWithFilters(
+    @GetMapping("/filtered/jpql")
+    public ResponseEntity<Page<ModDto>> getModsWithFiltersJpql(
             @RequestParam(required = false) String authorName,
             @RequestParam(required = false) String categoryName,
             @RequestParam(required = false) List<String> tagNames,
-            @RequestParam(defaultValue = "false") boolean useNative,
             @RequestParam(required = false) Integer page,
             Pageable pageable
     ) {
@@ -79,7 +78,26 @@ public class ModController {
             effectivePageable = PageRequest.of(page - 1, pageable.getPageSize(), pageable.getSort());
         }
         return ResponseEntity
-                .ok(modService.getModsWithFilters(authorName, categoryName, tagNames, useNative, effectivePageable));
+                .ok(modService.getModsWithFiltersJpql(authorName, categoryName, tagNames, effectivePageable));
+    }
+
+    @GetMapping("/filtered/native")
+    public ResponseEntity<Page<ModDto>> getModsWithFiltersNative(
+            @RequestParam(required = false) String authorName,
+            @RequestParam(required = false) String categoryName,
+            @RequestParam(required = false) List<String> tagNames,
+            @RequestParam(required = false) Integer page,
+            Pageable pageable
+    ) {
+        Pageable effectivePageable = pageable;
+        if (page != null) {
+            if (page < 1) {
+                throw new IllegalArgumentException("page must be >= 1");
+            }
+            effectivePageable = PageRequest.of(page - 1, pageable.getPageSize(), pageable.getSort());
+        }
+        return ResponseEntity
+                .ok(modService.getModsWithFiltersNative(authorName, categoryName, tagNames, effectivePageable));
     }
 
     @PostMapping("/demo/without-transaction")

@@ -184,10 +184,13 @@ public class ModServiceImpl implements ModService {
         Page<Long> idPage;
         if (useNative) {
             idPage = queryTagNames == null
-                    ? modRepository.findModIdsWithFiltersNativeWithoutTags(key.authorName(), key.categoryName(), pageable)
-                    : modRepository.findModIdsWithFiltersNative(key.authorName(), key.categoryName(), queryTagNames, tagCount, pageable);
+                    ? modRepository.findModIdsWithFiltersNativeWithoutTags(key.authorName(),
+                    key.categoryName(), pageable)
+                    : modRepository.findModIdsWithFiltersNative(key.authorName(), key.categoryName(),
+                    queryTagNames, tagCount, pageable);
         } else {
-            idPage = modRepository.findModIdsWithFiltersJpql(key.authorName(), key.categoryName(), queryTagNames, tagCount, pageable);
+            idPage = modRepository.findModIdsWithFiltersJpql(key.authorName(), key.categoryName(),
+                    queryTagNames, tagCount, pageable);
         }
 
         if (idPage.isEmpty()) {

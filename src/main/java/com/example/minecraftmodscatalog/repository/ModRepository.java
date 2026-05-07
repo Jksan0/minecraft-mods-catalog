@@ -48,7 +48,8 @@ public interface ModRepository extends JpaRepository<Mod, Long> {
                    "and (:tagNames is null or lower(t.name) in :tagNames) " +
                    "group by m.id, a.id, c.id " +
                    "having (:tagNames is null or count(distinct t.id) = :tagCount)",
-           countQuery = "select count(distinct m.id) from mods m " +
+           countQuery = "select count(*) from (" +
+                        "select m.id from mods m " +
                         "join authors a on m.author_id = a.id " +
                         "join categories c on m.category_id = c.id " +
                         "left join mod_tags mt on m.id = mt.mod_id " +
@@ -57,7 +58,8 @@ public interface ModRepository extends JpaRepository<Mod, Long> {
                         "and (:categoryName is null or lower(c.name) = :categoryName) " +
                         "and (:tagNames is null or lower(t.name) in :tagNames) " +
                         "group by m.id " +
-                        "having (:tagNames is null or count(distinct t.id) = :tagCount)",
+                        "having (:tagNames is null or count(distinct t.id) = :tagCount)" +
+                        ") filtered_mods",
            nativeQuery = true)
     Page<Long> findModIdsWithFiltersNative(@Param("authorName") String authorName,
                                            @Param("categoryName") String categoryName,

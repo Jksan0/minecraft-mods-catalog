@@ -74,7 +74,9 @@ public class ModServiceImpl implements ModService {
         validateUniqueNameForCreate(createDto.getName());
         Mod saved = modRepository.save(buildModGraph(createDto));
         modFilterCache.clear();
-        return ModMapper.toDto(saved);
+        return modRepository.findByIdWithGraph(saved.getId())
+                .map(ModMapper::toDto)
+                .orElseThrow(() -> new EntityNotFoundException(MOD_NOT_FOUND_PREFIX + saved.getId()));
     }
 
     @Override
@@ -90,7 +92,7 @@ public class ModServiceImpl implements ModService {
         }
 
         Set<String> batchNames = new HashSet<>();
-        List<ModDto> created = new java.util.ArrayList<>();
+        List<Long> createdIds = new java.util.ArrayList<>();
         for (ModCreateDto createDto : createDtos) {
             validateModPayload(createDto);
             String normalizedName = createDto.getName().toLowerCase(Locale.ROOT);
@@ -100,10 +102,10 @@ public class ModServiceImpl implements ModService {
 
             validateUniqueNameForCreate(createDto.getName());
             Mod saved = modRepository.save(buildModGraph(createDto));
-            created.add(ModMapper.toDto(saved));
+            createdIds.add(saved.getId());
         }
         modFilterCache.clear();
-        return created;
+        return mapCreatedByIdsWithGraph(createdIds);
     }
 
     @Override
@@ -303,18 +305,39 @@ public class ModServiceImpl implements ModService {
 
     private Set<Tag> resolveTags(final List<String> tagNames) {
         Set<Tag> tags = new HashSet<>();
-        if (tagNames == null) {
+        if (tagNames == null || tagNames.isEmpty()) {
             return tags;
         }
+
+        Map<String, String> originalByLower = new LinkedHashMap<>();
         for (String tagName : tagNames) {
-            Tag tag = tagRepository.findByNameIgnoreCase(tagName)
-                    .orElseGet(() -> {
-                        Tag newTag = new Tag();
-                        newTag.setName(tagName);
-                        return tagRepository.save(newTag);
-                    });
-            tags.add(tag);
+            if (tagName == null || tagName.isBlank()) {
+                continue;
+            }
+            originalByLower.putIfAbsent(tagName.toLowerCase(Locale.ROOT), tagName);
         }
+        if (originalByLower.isEmpty()) {
+            return tags;
+        }
+
+        Map<String, Tag> existingByLower = new HashMap<>();
+        tagRepository.findAllByLowerNameIn(originalByLower.keySet())
+                .forEach(tag -> existingByLower.put(tag.getName().toLowerCase(Locale.ROOT), tag));
+
+        List<Tag> newTags = originalByLower.entrySet().stream()
+                .filter(entry -> !existingByLower.containsKey(entry.getKey()))
+                .map(entry -> {
+                    Tag tag = new Tag();
+                    tag.setName(entry.getValue());
+                    return tag;
+                })
+                .toList();
+        if (!newTags.isEmpty()) {
+            tagRepository.saveAll(newTags)
+                    .forEach(tag -> existingByLower.put(tag.getName().toLowerCase(Locale.ROOT), tag));
+        }
+
+        tags.addAll(existingByLower.values());
         return tags;
     }
 
@@ -333,14 +356,26 @@ public class ModServiceImpl implements ModService {
             validateUniqueNameForCreate(createDto.getName());
         }
 
-        List<ModDto> result = modRepository.saveAll(createDtos.stream()
+        List<Long> createdIds = modRepository.saveAll(createDtos.stream()
                         .map(this::buildModGraph)
                         .toList())
                 .stream()
-                .map(ModMapper::toDto)
+                .map(Mod::getId)
                 .toList();
+        List<ModDto> result = mapCreatedByIdsWithGraph(createdIds);
         modFilterCache.clear();
         return result;
+    }
+
+    private List<ModDto> mapCreatedByIdsWithGraph(final List<Long> ids) {
+        Map<Long, Mod> byId = modRepository.findAllWithGraphByIdIn(ids).stream()
+                .collect(java.util.stream.Collectors
+                        .toMap(Mod::getId, mod -> mod, (left, right) -> left, LinkedHashMap::new));
+        return ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(ModMapper::toDto)
+                .toList();
     }
 
     private void validateUniqueNameForCreate(final String name) {

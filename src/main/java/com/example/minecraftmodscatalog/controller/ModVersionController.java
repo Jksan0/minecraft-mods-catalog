@@ -1,8 +1,12 @@
 package com.example.minecraftmodscatalog.controller;
 
+import com.example.minecraftmodscatalog.config.ApiErrorResponses;
 import com.example.minecraftmodscatalog.dto.ModVersionDto;
 import com.example.minecraftmodscatalog.dto.ModVersionUpsertDto;
 import com.example.minecraftmodscatalog.service.ModVersionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,10 +23,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/mod-versions")
 @RequiredArgsConstructor
+@Tag(name = "Mod Versions", description = "Mod version management API")
+@ApiErrorResponses
 public class ModVersionController {
     private final ModVersionService modVersionService;
 
     @GetMapping
+    @Operation(summary = "Get all versions or filter by mod ID")
     public ResponseEntity<List<ModVersionDto>> getAllVersions(
             @RequestParam(required = false) final Long modId
     ) {
@@ -30,24 +37,28 @@ public class ModVersionController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get version by ID")
     public ResponseEntity<ModVersionDto> getVersionById(@PathVariable final Long id) {
         return ResponseEntity.ok(modVersionService.getVersionById(id));
     }
 
     @PostMapping
-    public ResponseEntity<ModVersionDto> createVersion(@RequestBody final ModVersionUpsertDto createDto) {
+    @Operation(summary = "Create a new mod version")
+    public ResponseEntity<ModVersionDto> createVersion(@Valid @RequestBody final ModVersionUpsertDto createDto) {
         return ResponseEntity.status(201).body(modVersionService.createVersion(createDto));
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update mod version by ID")
     public ResponseEntity<ModVersionDto> updateVersion(
             @PathVariable final Long id,
-            @RequestBody final ModVersionUpsertDto updateDto
+            @Valid @RequestBody final ModVersionUpsertDto updateDto
     ) {
         return ResponseEntity.ok(modVersionService.updateVersion(id, updateDto));
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete mod version by ID")
     public ResponseEntity<Void> deleteVersion(@PathVariable final Long id) {
         modVersionService.deleteVersion(id);
         return ResponseEntity.noContent().build();

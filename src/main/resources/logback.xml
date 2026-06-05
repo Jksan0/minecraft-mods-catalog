@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <property name="LOG_FILE" value="logs/minecraft-mods-catalog.log" />
+    <property name="LOG_ARCHIVE" value="logs/archive" />
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%ex{full}" />
+
+    <!-- Console Appender -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Rolling File Appender - Main Log -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rotation -->
+            <fileNamePattern>${LOG_ARCHIVE}/minecraft-mods-catalog.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Max file size before rotation -->
+            <maxFileSize>10MB</maxFileSize>
+            <!-- Retention policy - keep for 30 days -->
+            <maxHistory>30</maxHistory>
+            <!-- Total size of all log files -->
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Async Appender for better performance -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <appender-ref ref="FILE" />
+    </appender>
+
+    <!-- Application Loggers -->
+    <logger name="com.example.minecraftmodscatalog" level="DEBUG" />
+    <logger name="com.example.minecraftmodscatalog.aspect" level="INFO" />
+
+    <!-- Hibernate and JPA Loggers -->
+    <logger name="org.hibernate.SQL" level="DEBUG" />
+    <logger name="org.hibernate.orm.jdbc.bind" level="TRACE" />
+    <logger name="org.springframework.orm.jpa" level="DEBUG" />
+
+    <!-- Spring Framework Loggers -->
+    <logger name="org.springframework.web" level="INFO" />
+    <logger name="org.springframework.security" level="INFO" />
+    <logger name="org.springframework.boot" level="INFO" />
+
+    <!-- Third-party Loggers -->
+    <logger name="org.postgresql" level="INFO" />
+
+    <!-- Root Logger -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_FILE" />
+    </root>
+
+    <!-- Profiles for different environments -->
+    <springProfile name="dev">
+        <root level="DEBUG">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="ASYNC_FILE" />
+        </root>
+    </springProfile>
+
+    <springProfile name="prod">
+        <root level="WARN">
+            <appender-ref ref="ASYNC_FILE" />
+        </root>
+    </springProfile>
+</configuration>
+

@@ -16,6 +16,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import java.time.LocalDateTime;
+import java.time.Clock;
 import java.util.List;
 
 @Slf4j
@@ -138,7 +139,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .status(status.value())
                 .error(status.getReasonPhrase())
                 .path(extractPath(request))
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(Clock.systemUTC()))
                 .fieldErrors(fieldErrors)
                 .build();
     }

@@ -121,8 +121,23 @@ public class ModController {
     @PostMapping("/demo/without-transaction")
     @Operation(summary = "Create multiple mods without transaction")
     public ResponseEntity<List<ModDto>> withoutTransaction(
-            @NotEmpty @Valid @RequestBody final List<ModCreateDto> createDtos
-    ) {
+            @NotEmpty @Valid @RequestBody final List<ModCreateDto> createDtos) {
         return ResponseEntity.status(201).body(modService.createModsWithoutTransaction(createDtos));
+    }
+
+    @PostMapping("/bulk-demo")
+    public ResponseEntity<TransactionDemoResultDto> bulkCreateMods(
+            @RequestBody List<ModCreateDto> mods,
+            @RequestParam(defaultValue = "true") boolean isTransactional,
+            @RequestParam(defaultValue = "false") boolean simulateError) {
+        try {
+            TransactionDemoResultDto result = isTransactional
+                    ? modService.bulkCreateTransactional(mods, simulateError)
+                    : modService.bulkCreateNonTransactional(mods, simulateError);
+            return ResponseEntity.ok(result);
+        } catch (RuntimeException e) {
+            return ResponseEntity.internalServerError()
+                    .body(new TransactionDemoResultDto(0, "Ошибка при выполнении: " + e.getMessage()));
+        }
     }
 }

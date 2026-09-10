@@ -32,7 +32,7 @@ public class PerformanceLoggingAspect {
 
         try {
             Object result = joinPoint.proceed();
-            long duration = (System.nanoTime() - startTime) / 1_000_000; // Convert to milliseconds
+            long duration = (System.nanoTime() - startTime) / 1_000_000;
             log.info("Method execution completed: {}.{}() - Duration: {}ms", className, methodName, duration);
             return result;
         } catch (Throwable ex) {

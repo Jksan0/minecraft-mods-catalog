@@ -8,7 +8,9 @@ import com.example.minecraftmodscatalog.repository.ModRepository;
 import com.example.minecraftmodscatalog.repository.TagRepository;
 import com.example.minecraftmodscatalog.service.TagService;
 import jakarta.persistence.EntityNotFoundException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -70,7 +72,11 @@ public class TagServiceImpl implements TagService {
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(TAG_NOT_FOUND_PREFIX + id));
 
-        modRepository.findAll().forEach(mod -> mod.getTags().remove(tag));
+        modRepository.findAll().forEach(mod -> {
+            Set<Tag> tags = new HashSet<>(mod.getTags());
+            tags.remove(tag);
+            mod.setTags(tags);
+        });
         modRepository.flush();
         tagRepository.deleteById(id);
     }

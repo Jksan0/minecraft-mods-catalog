@@ -20,6 +20,8 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,23 +89,20 @@ public class ModServiceImpl implements ModService {
 
     @Override
     public List<ModDto> createModsWithoutTransaction(final List<ModCreateDto> createDtos) {
-        if (createDtos == null || createDtos.isEmpty()) {
-            throw new IllegalArgumentException("Request body must contain at least one mod");
-        }
+        List<ModCreateDto> validatedDtos = Optional.ofNullable(createDtos)
+                .filter(list -> !list.isEmpty())
+                .orElseThrow(() -> new IllegalArgumentException("Request body must contain at least one mod"));
 
-        Set<String> batchNames = new HashSet<>();
-        List<Long> createdIds = new java.util.ArrayList<>();
-        for (ModCreateDto createDto : createDtos) {
-            validateModPayload(createDto);
-            String normalizedName = createDto.getName().toLowerCase(Locale.ROOT);
-            if (!batchNames.add(normalizedName)) {
-                throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + createDto.getName());
-            }
+        validateDuplicateNames(validatedDtos);
 
-            validateUniqueNameForCreate(createDto.getName());
-            Mod saved = modRepository.save(buildModGraph(createDto));
-            createdIds.add(saved.getId());
-        }
+        List<Long> createdIds = validatedDtos.stream()
+                .map(dto -> {
+                    validateModPayload(dto);
+                    validateUniqueNameForCreate(dto.getName());
+                    return modRepository.save(buildModGraph(dto)).getId();
+                })
+                .toList();
+
         modFilterCache.clear();
         return mapCreatedByIdsWithGraph(createdIds);
     }
@@ -342,36 +341,60 @@ public class ModServiceImpl implements ModService {
     }
 
     private List<ModDto> createModsInternal(final List<ModCreateDto> createDtos) {
-        if (createDtos == null || createDtos.isEmpty()) {
-            throw new IllegalArgumentException("Request body must contain at least one mod");
-        }
+        List<ModCreateDto> validatedDtos = Optional.ofNullable(createDtos)
+                .filter(list -> !list.isEmpty())
+                .orElseThrow(() -> new IllegalArgumentException("Request body must contain at least one mod"));
 
-        Set<String> batchNames = new HashSet<>();
-        for (ModCreateDto createDto : createDtos) {
-            validateModPayload(createDto);
-            String normalizedName = createDto.getName().toLowerCase(Locale.ROOT);
-            if (!batchNames.add(normalizedName)) {
-                throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + createDto.getName());
-            }
-            validateUniqueNameForCreate(createDto.getName());
-        }
+        validateDuplicateNames(validatedDtos);
+        validatedDtos.forEach(this::validateModPayload);
+        validatedDtos.stream()
+                .map(ModCreateDto::getName)
+                .forEach(this::validateUniqueNameForCreate);
 
-        List<Long> createdIds = modRepository.saveAll(createDtos.stream()
+        List<Long> createdIds = modRepository.saveAll(validatedDtos.stream()
                         .map(this::buildModGraph)
                         .toList())
                 .stream()
                 .map(Mod::getId)
                 .toList();
-        List<ModDto> result = mapCreatedByIdsWithGraph(createdIds);
+
         modFilterCache.clear();
-        return result;
+        return mapCreatedByIdsWithGraph(createdIds);
+    }
+
+    private void validateDuplicateNames(final List<ModCreateDto> createDtos) {
+        Optional<String> duplicateName = createDtos.stream()
+                .map(dto -> Optional.ofNullable(dto)
+                        .map(ModCreateDto::getName)
+                        .map(name -> name.trim().toLowerCase(Locale.ROOT))
+                        .orElse(""))
+                .collect(Collectors.groupingBy(name -> name, Collectors.counting()))
+                .entrySet().stream()
+                .filter(entry -> entry.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .findFirst();
+
+        duplicateName.ifPresent(duplicate -> {
+            String originalName = createDtos.stream()
+                    .map(ModCreateDto::getName)
+                    .filter(name -> name != null && name.equalsIgnoreCase(duplicate))
+                    .findFirst()
+                    .orElse(duplicate);
+            throw new IllegalArgumentException(MOD_NAME_ALREADY_EXISTS_PREFIX + originalName);
+        });
     }
 
     private List<ModDto> mapCreatedByIdsWithGraph(final List<Long> ids) {
-        Map<Long, Mod> byId = modRepository.findAllWithGraphByIdIn(ids).stream()
-                .collect(java.util.stream.Collectors
-                        .toMap(Mod::getId, mod -> mod, (left, right) -> left, LinkedHashMap::new));
-        return ids.stream()
+        List<Long> safeIds = Optional.ofNullable(ids)
+                .filter(list -> !list.isEmpty())
+                .orElseGet(List::of);
+
+        Map<Long, Mod> byId = Optional.ofNullable(modRepository.findAllWithGraphByIdIn(safeIds))
+                .orElseGet(List::of)
+                .stream()
+                .collect(Collectors.toMap(Mod::getId, mod -> mod, (left, right) -> left, LinkedHashMap::new));
+
+        return safeIds.stream()
                 .map(byId::get)
                 .filter(Objects::nonNull)
                 .map(ModMapper::toDto)

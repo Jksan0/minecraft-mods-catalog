@@ -31,8 +31,6 @@
         <appender-ref ref="FILE" />
     </appender>
 
-    <!-- package-specific loggers removed; only root level is used -->
-
     <root level="WARN">
         <appender-ref ref="CONSOLE" />
         <appender-ref ref="ASYNC_FILE" />

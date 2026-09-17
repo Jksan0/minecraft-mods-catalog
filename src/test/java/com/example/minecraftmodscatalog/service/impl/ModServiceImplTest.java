@@ -197,8 +197,9 @@ class ModServiceImplTest {
     void createMods_shouldRejectDuplicateNames() {
         ModCreateDto dto1 = buildValidDto("Alpha", "first");
         ModCreateDto dto2 = buildValidDto("alpha", "second");
+        List<ModCreateDto> duplicateDtos = List.of(dto1, dto2);
 
-        assertThatThrownBy(() -> service.createMods(List.of(dto1, dto2)))
+        assertThatThrownBy(() -> service.createMods(duplicateDtos))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Mod name already exists: Alpha");
     }
@@ -372,13 +373,15 @@ class ModServiceImplTest {
 
         ModCreateDto duplicateNameDto = buildValidDto("Alpha", "d1");
         ModCreateDto duplicateNameDto2 = buildValidDto("alpha", "d2");
-        assertThatThrownBy(() -> invokePrivate("validateDuplicateNames", List.of(duplicateNameDto, duplicateNameDto2)))
+        List<ModCreateDto> duplicateNames = List.of(duplicateNameDto, duplicateNameDto2);
+        assertThatThrownBy(() -> invokePrivate("validateDuplicateNames", duplicateNames))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Mod name already exists: Alpha");
 
         ModCreateDto sameName = buildValidDto("Alpha", "d1");
         ModCreateDto sameName2 = buildValidDto("Alpha", "d2");
-        assertThatThrownBy(() -> invokePrivate("validateDuplicateNames", List.of(sameName, sameName2)))
+        List<ModCreateDto> sameNames = List.of(sameName, sameName2);
+        assertThatThrownBy(() -> invokePrivate("validateDuplicateNames", sameNames))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -463,10 +466,11 @@ class ModServiceImplTest {
         assertThatThrownBy(() -> service.createModsWithoutTransaction(null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Request body must contain at least one mod");
-        assertThatThrownBy(() -> service.createModsWithoutTransaction(List.of()))
+        List<ModCreateDto> emptyMods = List.of();
+        assertThatThrownBy(() -> service.createModsWithoutTransaction(emptyMods))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Request body must contain at least one mod");
-        assertThatThrownBy(() -> service.createMods(List.of()))
+        assertThatThrownBy(() -> service.createMods(emptyMods))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Request body must contain at least one mod");
 

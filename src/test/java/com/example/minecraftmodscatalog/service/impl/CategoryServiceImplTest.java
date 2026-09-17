@@ -92,6 +92,16 @@ class CategoryServiceImplTest {
     }
 
     @Test
+    void createCategory_shouldRejectNullName() {
+        CategoryCreateDto dto = new CategoryCreateDto();
+        dto.setName(null);
+
+        assertThatThrownBy(() -> service.createCategory(dto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Category name is required");
+    }
+
+    @Test
     void createCategory_shouldRejectDuplicateName() {
         CategoryCreateDto dto = new CategoryCreateDto();
         dto.setName("Utility");

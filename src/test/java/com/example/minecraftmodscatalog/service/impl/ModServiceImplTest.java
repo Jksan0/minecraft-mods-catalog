@@ -462,6 +462,85 @@ class ModServiceImplTest {
     }
 
     @Test
+    void remainingConditionBranches_shouldBeCovered() throws Exception {
+        Author author = new Author();
+        author.setId(4L);
+        Mod mod = new Mod();
+        mod.setId(5L);
+        mod.setAuthor(author);
+
+        when(modRepository.findById(5L)).thenReturn(Optional.of(mod));
+        when(modRepository.existsByAuthorId(4L)).thenReturn(true);
+        service.deleteMod(5L);
+        verify(modRepository, times(0)).deleteById(4L);
+
+        ModCreateDto blankCategoryNameDto = new ModCreateDto();
+        blankCategoryNameDto.setCategoryName("   ");
+        blankCategoryNameDto.setCategoryNames(List.of("Utility", "Adventure"));
+        assertThat(invokePrivate("extractCategoryName", blankCategoryNameDto)).isEqualTo("Utility");
+
+        ModCreateDto emptyCategoryNamesDto = new ModCreateDto();
+        emptyCategoryNamesDto.setCategoryNames(List.of());
+        assertThatThrownBy(() -> invokePrivate("extractCategoryName", emptyCategoryNamesDto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Category is required");
+
+        assertThat((List<String>) invokePrivate("normalizeTags", List.of())).isEmpty();
+
+        Tag existingTag = new Tag();
+        existingTag.setName("tech");
+        when(tagRepository.findAllByLowerNameIn(anySet())).thenReturn(List.of(existingTag));
+        when(tagRepository.saveAll(anyList())).thenAnswer(inv -> {
+            List<Tag> saved = inv.getArgument(0);
+            saved.forEach(tag -> tag.setId(77L));
+            return saved;
+        });
+        Set<Tag> mixedTags = (Set<Tag>) invokePrivate("resolveTags", Arrays.asList("tech", "magic", " ", null));
+        assertThat(mixedTags).extracting(Tag::getName).containsExactlyInAnyOrder("tech", "magic");
+
+        assertThat((Set<Tag>) invokePrivate("resolveTags", List.of())).isEmpty();
+
+        Set<Tag> existingOnlyTags = (Set<Tag>) invokePrivate("resolveTags", List.of("tech"));
+        assertThat(existingOnlyTags).hasSize(1);
+
+        ModCreateDto nullNameDto = buildValidDto("Alpha", "d1");
+        nullNameDto.setName(null);
+        ModCreateDto alphaDto = buildValidDto("alpha", "d2");
+        ModCreateDto secondAlphaDto = buildValidDto("ALPHA", "d3");
+        ModCreateDto betaDto = buildValidDto("beta", "d4");
+        List<ModCreateDto> duplicateNamesWithNull = List.of(betaDto, nullNameDto, alphaDto, secondAlphaDto);
+        assertThatThrownBy(() -> invokePrivate("validateDuplicateNames", duplicateNamesWithNull))
+                .isInstanceOf(IllegalArgumentException.class)
+                .satisfies(ex -> assertThat(((IllegalArgumentException) ex).getMessage()).containsIgnoringCase("Mod name already exists: alpha"));
+
+        ModVersionCreateDto nullNameVersion = new ModVersionCreateDto();
+        nullNameVersion.setVersionName(" ");
+        assertThatThrownBy(() -> invokePrivate("validateVersion", nullNameVersion))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Version name is required");
+
+        ModVersionCreateDto nullVersionName = new ModVersionCreateDto();
+        nullVersionName.setVersionName(null);
+        assertThatThrownBy(() -> invokePrivate("validateVersion", nullVersionName))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Version name is required");
+
+        ModCreateDto nullVersionsDto = new ModCreateDto();
+        nullVersionsDto.setName("Alpha");
+        nullVersionsDto.setDescription("Desc");
+        nullVersionsDto.setAuthorName("Alice");
+        nullVersionsDto.setCategoryName("Utility");
+        nullVersionsDto.setVersions(null);
+        assertThatThrownBy(() -> invokePrivate("validateVersions", nullVersionsDto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("At least one mod version is required");
+
+        assertThatThrownBy(() -> invokePrivate("validateVersion", (Object) null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Version name is required");
+    }
+
+    @Test
     void nullAndEmptyBranches_shouldBeCovered() throws Exception {
         assertThatThrownBy(() -> service.createModsWithoutTransaction(null))
                 .isInstanceOf(IllegalArgumentException.class)

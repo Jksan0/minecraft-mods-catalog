@@ -120,9 +120,23 @@ class ModVersionServiceImplTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Version name is required");
 
+        ModVersionUpsertDto nullName = new ModVersionUpsertDto();
+        nullName.setModId(1L);
+        nullName.setVersionName(null);
+        assertThatThrownBy(() -> service.createVersion(nullName))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Version name is required");
+
         ModVersionUpsertDto missingModId = new ModVersionUpsertDto();
         missingModId.setVersionName("1.0");
         assertThatThrownBy(() -> service.createVersion(missingModId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("modId is required");
+
+        ModVersionUpsertDto nullModId = new ModVersionUpsertDto();
+        nullModId.setVersionName("1.0");
+        nullModId.setModId(null);
+        assertThatThrownBy(() -> service.createVersion(nullModId))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("modId is required");
 
@@ -162,6 +176,33 @@ class ModVersionServiceImplTest {
 
         assertThat(result.getVersionName()).isEqualTo("2.0.0");
         assertThat(result.getDownloadCount()).isEqualTo(99);
+    }
+
+    @Test
+    void updateVersion_shouldAllowSameModUpdate() {
+        ModVersionUpsertDto dto = new ModVersionUpsertDto();
+        dto.setModId(7L);
+        dto.setVersionName("  2.0.1  ");
+        dto.setDownloadCount(44);
+
+        Mod mod = new Mod();
+        mod.setId(7L);
+
+        ModVersion version = new ModVersion();
+        version.setId(6L);
+        version.setVersionName("1.0.0");
+        version.setDownloadCount(10);
+        version.setMod(mod);
+
+        when(modVersionRepository.findById(6L)).thenReturn(Optional.of(version));
+        when(modRepository.findById(7L)).thenReturn(Optional.of(mod));
+        when(modVersionRepository.save(any(ModVersion.class))).thenReturn(version);
+
+        ModVersionDto result = service.updateVersion(6L, dto);
+
+        assertThat(result.getVersionName()).isEqualTo("2.0.1");
+        assertThat(result.getDownloadCount()).isEqualTo(44);
+        assertThat(version.getMod().getId()).isEqualTo(7L);
     }
 
     @Test

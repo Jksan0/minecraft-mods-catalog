@@ -92,6 +92,16 @@ class AuthorServiceImplTest {
     }
 
     @Test
+    void createAuthor_shouldRejectNullName() {
+        AuthorCreateDto dto = new AuthorCreateDto();
+        dto.setName(null);
+
+        assertThatThrownBy(() -> service.createAuthor(dto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Author name is required");
+    }
+
+    @Test
     void createAuthor_shouldRejectDuplicateName() {
         AuthorCreateDto dto = new AuthorCreateDto();
         dto.setName("Alice");

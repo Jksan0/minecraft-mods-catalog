@@ -95,6 +95,16 @@ class TagServiceImplTest {
     }
 
     @Test
+    void createTag_shouldRejectNullName() {
+        TagCreateDto dto = new TagCreateDto();
+        dto.setName(null);
+
+        assertThatThrownBy(() -> service.createTag(dto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Tag name is required");
+    }
+
+    @Test
     void createTag_shouldRejectDuplicateName() {
         TagCreateDto dto = new TagCreateDto();
         dto.setName("tech");

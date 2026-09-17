@@ -31,6 +31,7 @@
         <springdoc.version>3.0.3</springdoc.version>
         <swagger.version>2.2.47</swagger.version>
         <bytebuddy.version>1.17.8</bytebuddy.version>
+        <argLine></argLine>
     </properties>
     <dependencies>
         <dependency>
@@ -117,6 +118,26 @@
                 <configuration>
                     <argLine>-javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${bytebuddy.version}/byte-buddy-agent-${bytebuddy.version}.jar ${argLine}</argLine>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>

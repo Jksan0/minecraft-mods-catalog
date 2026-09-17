@@ -164,9 +164,18 @@ class TagServiceImplTest {
         Mod mod = new Mod();
         mod.setTags(Set.of(tag));
 
-        invokeDeclared(TagServiceImpl.class, null, "lambda$getTagById$0", 12L);
-        invokeDeclared(TagServiceImpl.class, null, "lambda$updateTag$1", 5L);
-        invokeDeclared(TagServiceImpl.class, null, "lambda$deleteTag$2", 9L);
+        EntityNotFoundException missingTag = (EntityNotFoundException) invokeDeclared(TagServiceImpl.class, null, "lambda$getTagById$0", 12L);
+        assertThat(missingTag).isInstanceOf(EntityNotFoundException.class);
+        assertThat(missingTag.getMessage()).contains("Tag not found: 12");
+
+        EntityNotFoundException missingUpdate = (EntityNotFoundException) invokeDeclared(TagServiceImpl.class, null, "lambda$updateTag$1", 5L);
+        assertThat(missingUpdate).isInstanceOf(EntityNotFoundException.class);
+        assertThat(missingUpdate.getMessage()).contains("Tag not found: 5");
+
+        EntityNotFoundException missingDelete = (EntityNotFoundException) invokeDeclared(TagServiceImpl.class, null, "lambda$deleteTag$2", 9L);
+        assertThat(missingDelete).isInstanceOf(EntityNotFoundException.class);
+        assertThat(missingDelete.getMessage()).contains("Tag not found: 9");
+
         invokeDeclared(TagServiceImpl.class, null, "lambda$deleteTag$3", tag, mod);
     }
 

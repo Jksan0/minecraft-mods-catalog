@@ -408,7 +408,8 @@ class ModServiceImplTest {
         invokeDeclared(ModServiceImpl.class, service, "lambda$validateDuplicateNames$21", "Alpha");
         invokeDeclared(ModServiceImpl.class, service, "lambda$validateDuplicateNames$22", Map.entry("Alpha", 1L));
         invokeDeclared(ModServiceImpl.class, service, "lambda$validateDuplicateNames$23", "Alpha", "Alpha");
-        assertThatThrownBy(() -> invokeDeclared(ModServiceImpl.class, service, "lambda$validateDuplicateNames$24", List.of(buildValidDto("Alpha", "d")), "Alpha"))
+        List<ModCreateDto> duplicateNameList = List.of(buildValidDto("Alpha", "d"));
+        assertThatThrownBy(() -> invokeDeclared(ModServiceImpl.class, service, "lambda$validateDuplicateNames$24", duplicateNameList, "Alpha"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Mod name already exists: Alpha");
         invokeDeclared(ModServiceImpl.class, service, "lambda$mapCreatedByIdsWithGraph$25", List.of(1L));
@@ -445,7 +446,8 @@ class ModServiceImplTest {
         invokeDeclared(ModServiceImpl.class, null, "lambda$validateDuplicateNames$21", "Alpha");
         invokeDeclared(ModServiceImpl.class, null, "lambda$validateDuplicateNames$22", Map.entry("Alpha", 1L));
         invokeDeclared(ModServiceImpl.class, null, "lambda$validateDuplicateNames$23", "Alpha", "Alpha");
-        assertThatThrownBy(() -> invokeDeclared(ModServiceImpl.class, null, "lambda$validateDuplicateNames$24", List.of(buildValidDto("Alpha", "d")), "Alpha"))
+        List<ModCreateDto> duplicateNameListForStatic = List.of(buildValidDto("Alpha", "d"));
+        assertThatThrownBy(() -> invokeDeclared(ModServiceImpl.class, null, "lambda$validateDuplicateNames$24", duplicateNameListForStatic, "Alpha"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Mod name already exists: Alpha");
         Tag tagForResolveTags = new Tag();
@@ -555,17 +557,16 @@ class ModServiceImplTest {
                     continue;
                 }
                 Class<?> argType = args[i].getClass();
-                if (paramTypes[i].isPrimitive()) {
-                    if ((paramTypes[i] == boolean.class && argType == Boolean.class)
-                            || (paramTypes[i] == byte.class && argType == Byte.class)
-                            || (paramTypes[i] == short.class && argType == Short.class)
-                            || (paramTypes[i] == int.class && argType == Integer.class)
-                            || (paramTypes[i] == long.class && argType == Long.class)
-                            || (paramTypes[i] == float.class && argType == Float.class)
-                            || (paramTypes[i] == double.class && argType == Double.class)
-                            || (paramTypes[i] == char.class && argType == Character.class)) {
-                        continue;
-                    }
+                if (paramTypes[i].isPrimitive()
+                        && ((paramTypes[i] == boolean.class && argType == Boolean.class)
+                        || (paramTypes[i] == byte.class && argType == Byte.class)
+                        || (paramTypes[i] == short.class && argType == Short.class)
+                        || (paramTypes[i] == int.class && argType == Integer.class)
+                        || (paramTypes[i] == long.class && argType == Long.class)
+                        || (paramTypes[i] == float.class && argType == Float.class)
+                        || (paramTypes[i] == double.class && argType == Double.class)
+                        || (paramTypes[i] == char.class && argType == Character.class))) {
+                    continue;
                 }
                 if (!paramTypes[i].isAssignableFrom(argType)) {
                     matches = false;

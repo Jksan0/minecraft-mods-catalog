@@ -121,7 +121,7 @@ public class ModController {
     @PostMapping("/demo/without-transaction")
     @Operation(summary = "Create multiple mods without transaction")
     public ResponseEntity<List<ModDto>> withoutTransaction(
-            @NotEmpty @Valid @RequestBody final List<ModCreateDto> createDtos
+            @NotEmpty @RequestBody final List<ModCreateDto> createDtos
     ) {
         return ResponseEntity.status(201).body(modService.createModsWithoutTransaction(createDtos));
     }

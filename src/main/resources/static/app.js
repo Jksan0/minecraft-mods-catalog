@@ -34,35 +34,6 @@ function textValue(value) {
     return value.name || "";
 }
 
-function bindEntityPageActions() {
-    document.querySelectorAll("[data-entity-page-action]").forEach(button => {
-        button.onclick = () => {
-            const kind = state.page;
-            state.entityPages[kind] += button.dataset.entityPageAction === "next" ? 1 : -1;
-            renderEntityContent();
-        };
-    });
-    document.querySelectorAll("[data-entity-page]").forEach(select => {
-        select.onchange = () => {
-            state.entityPages[select.dataset.entityPage] = Number(select.value);
-            renderEntityContent();
-        };
-    });
-}
-
-function currentEntityItems() {
-    const search = document.querySelector("#entity-search");
-    const query = search ? search.value.toLowerCase() : "";
-    return state[state.page].filter(item => item.name.toLowerCase().includes(query));
-}
-
-function renderEntityContent(items) {
-    const sourceItems = items || currentEntityItems();
-    replaceHtml(document.querySelector("#entity-list"), entityContent(state.page, sourceItems));
-    bindEntityPageActions();
-    bind();
-}
-
 const chipMarkup = value => `<span class="chip">${esc(value)}</span>`;
 const chips = values => {
     const valuesList = list(values);
@@ -225,8 +196,16 @@ function entityPage(kind) {
     const singular = entitySingular(kind);
     const listId = `${kind}-list`;
     const options = items.map(item => `<option value="${esc(item.name)}">`).join("");
+    const searchElement = document.querySelector("#entity-search");
+    const search = searchElement ? searchElement.value.toLowerCase() : "";
+    const filteredItems = items.filter(item => item.name.toLowerCase().includes(search));
+    const pages = Math.max(1, Math.ceil(filteredItems.length / state.entityPageSize));
+    state.entityPages[kind] = Math.min(state.entityPages[kind], pages);
+    const start = (state.entityPages[kind] - 1) * state.entityPageSize;
+    const visibleItems = filteredItems.slice(start, start + state.entityPageSize);
+    const pagination = entityPagination(kind, pages);
     return `<div class="page-heading"><div><div class="eyebrow">Справочник</div><h2>${title}</h2></div><button class="button primary" data-action="new-entity" data-kind="${kind}">＋ Добавить ${singular}</button></div>
-    <section class="panel"><div class="toolbar"><input id="entity-search" list="${listId}" placeholder="Поиск по названию"></div><div id="entity-list">${entityContent(kind, items)}</div><datalist id="${listId}">${options}</datalist></section>`;
+    <section class="panel"><div class="toolbar"><input id="entity-search" list="${listId}" placeholder="Поиск по названию"></div><div id="entity-list">${entityTable(kind, visibleItems)}${pagination}</div><datalist id="${listId}">${options}</datalist></section>`;
 }
 
 function entitySingular(kind) {
@@ -244,22 +223,18 @@ function entityTable(kind, items) {
     return `<div class="table-wrap"><table><thead><tr><th>ID</th><th><button class="sort-button" data-entity-sort="${kind}">НАЗВАНИЕ ${arrow}</button></th><th>Связи</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function entityContent(kind, items) {
-    const sortedItems = sortByName(items, state.entitySortDirections[kind]);
-    const pages = Math.max(1, Math.ceil(sortedItems.length / state.entityPageSize));
-    state.entityPages[kind] = Math.min(state.entityPages[kind], pages);
-    const start = (state.entityPages[kind] - 1) * state.entityPageSize;
-    const pageItems = sortedItems.slice(start, start + state.entityPageSize);
-    const options = Array.from({ length: pages }, (_, index) => {
-        const page = index + 1;
-        const selected = page === state.entityPages[kind] ? "selected" : "";
-        return `<option value="${page}" ${selected}>${page}</option>`;
-    }).join("");
-    return `${entityTable(kind, pageItems)}<div class="pagination entity-pagination"><button class="button" data-entity-page-action="prev" ${state.entityPages[kind] === 1 ? "disabled" : ""}>‹ Назад</button><label>Страница <select data-entity-page="${kind}">${options}</select> из ${pages}</label><button class="button" data-entity-page-action="next" ${state.entityPages[kind] === pages ? "disabled" : ""}>Вперед ›</button></div>`;
-}
-
 function entityTableRow(kind, item) {
     return `<tr><td class="muted">#${item.id}</td><td><strong>${esc(item.name)}</strong></td><td class="tag-green">${getEntityRelationMarkup(kind, item.name)}</td><td><div class="actions"><button class="button action-edit" data-action="edit-entity" data-kind="${kind}" data-id="${item.id}">Изменить</button><button class="button danger action-delete" data-action="delete-entity" data-kind="${kind}" data-id="${item.id}" data-name="${esc(item.name)}">Удалить</button></div></td></tr>`;
+}
+
+function entityPagination(kind, pages) {
+    const currentPage = state.entityPages[kind];
+    const pageButtons = Array.from({ length: pages }, (_, index) => {
+        const page = index + 1;
+        const active = page === currentPage ? " primary" : "";
+        return `<button class="button page-number${active}" data-entity-page="${page}" data-entity-kind="${kind}" ${page === currentPage ? "disabled" : ""}>${page}</button>`;
+    }).join("");
+    return `<div class="pagination"><button class="button" data-entity-page-action="prev" data-entity-kind="${kind}" ${currentPage === 1 ? "disabled" : ""}>‹ Назад</button><div class="page-numbers">${pageButtons}</div><button class="button" data-entity-page-action="next" data-entity-kind="${kind}" ${currentPage === pages ? "disabled" : ""}>Вперед ›</button></div>`;
 }
 
 function render() {
@@ -290,6 +265,7 @@ function bindEntitySort() {
         button.onclick = () => {
             const kind = button.dataset.entitySort;
             state.entitySortDirections[kind] = state.entitySortDirections[kind] === "asc" ? "desc" : "asc";
+            state.entityPages[kind] = 1;
             render();
         };
     });
@@ -299,6 +275,19 @@ function bindPageActions() {
     document.querySelectorAll("[data-page-action]").forEach(button => {
         button.onclick = () => {
             state.modPage += button.dataset.pageAction === "next" ? 1 : -1;
+            render();
+        };
+    });
+    document.querySelectorAll("[data-entity-page]").forEach(button => {
+        button.onclick = () => {
+            state.entityPages[button.dataset.entityKind] = Number(button.dataset.entityPage);
+            render();
+        };
+    });
+    document.querySelectorAll("[data-entity-page-action]").forEach(button => {
+        button.onclick = () => {
+            const kind = button.dataset.entityKind;
+            state.entityPages[kind] += button.dataset.entityPageAction === "next" ? 1 : -1;
             render();
         };
     });
@@ -337,9 +326,9 @@ function bindSearchControls() {
     const entitySearch = document.querySelector("#entity-search");
     if (entitySearch) {
         entitySearch.oninput = () => {
-            const items = state[state.page].filter(item => item.name.toLowerCase().includes(entitySearch.value.toLowerCase()));
             state.entityPages[state.page] = 1;
-            renderEntityContent(items);
+            const items = state[state.page].filter(item => item.name.toLowerCase().includes(entitySearch.value.toLowerCase()));
+            render();
         };
     }
     const clear = document.querySelector("#clear-filters");
@@ -362,7 +351,6 @@ function bind() {
     bindModSort();
     bindEntitySort();
     bindPageActions();
-    bindEntityPageActions();
     document.querySelectorAll("[data-action]").forEach(button => {
         button.onclick = () => handleAction(button.dataset.action, button.dataset).catch(error => toast(error.message, true));
     });

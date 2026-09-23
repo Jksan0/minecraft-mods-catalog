@@ -61,6 +61,27 @@ const russianError = message => ({
     .replace(/^Not Found$/, "Запись не найдена")
     .replace(/^Conflict$/, "Операция конфликтует с существующими данными"));
 
+const sortByName = (items, direction = "asc") => [...items].sort((left, right) => {
+    const result = String(left.name ?? "").localeCompare(String(right.name ?? ""), "ru", { sensitivity: "base" });
+    return direction === "asc" ? result : -result;
+});
+
+const relatedModsForEntity = (kind, itemName) => state.mods.filter(mod => {
+    if (kind === "authors") return mod.authorName === itemName;
+    if (kind === "categories") return mod.categoryName === itemName;
+    return list(mod.tags).includes(itemName);
+});
+
+const getEntityRelationMarkup = (kind, itemName) => {
+    const relatedMods = relatedModsForEntity(kind, itemName);
+    const relation = relatedMods.length;
+    if (!relation) return '<span class="muted">0 мод.</span>';
+    const relatedNames = relatedMods
+        .map(mod => mod.name)
+        .sort((left, right) => left.localeCompare(right, "ru", { sensitivity: "base" }));
+    return `<span class="relation" tabindex="0">${relation} мод.<span class="relation-popover">${relatedNames.map(name => `<span>${esc(name)}</span>`).join("")}</span></span>`;
+};
+
 function appShell(content) {
     return `<div class="shell">
         <header class="topbar"><div class="brand"><div class="brand-mark">✦</div><div><h1>ModAtlas</h1><p>каталог Minecraft модов</p></div></div>
@@ -131,17 +152,8 @@ function entityPage(kind) {
 function entityTable(kind, items) {
     if (!items.length) return `<div class="empty">Записей пока нет.</div>`;
     const direction = state.entitySortDirections[kind];
-    const sortedItems = [...items].sort((left, right) => {
-        const result = left.name.localeCompare(right.name, "ru", { sensitivity: "base" });
-        return direction === "asc" ? result : -result;
-    });
-    return `<div class="table-wrap"><table><thead><tr><th>ID</th><th><button class="sort-button" data-entity-sort="${kind}">НАЗВАНИЕ ${direction === "asc" ? "↑" : "↓"}</button></th><th>Связи</th><th></th></tr></thead><tbody>${sortedItems.map(item => {
-        const relation = kind === "authors" ? state.mods.filter(mod => mod.authorName === item.name).length : kind === "categories" ? state.mods.filter(mod => mod.categoryName === item.name).length : state.mods.filter(mod => list(mod.tags).includes(item.name)).length;
-        const relatedMods = state.mods.filter(mod => kind === "authors" ? mod.authorName === item.name : kind === "categories" ? mod.categoryName === item.name : list(mod.tags).includes(item.name));
-        const relatedNames = relatedMods.map(mod => mod.name).sort((left, right) => left.localeCompare(right, "ru", { sensitivity: "base" }));
-        const relationMarkup = relation ? `<span class="relation" tabindex="0">${relation} мод.<span class="relation-popover">${relatedNames.map(name => `<span>${esc(name)}</span>`).join("")}</span></span>` : `<span class="muted">0 мод.</span>`;
-        return `<tr><td class="muted">#${item.id}</td><td><strong>${esc(item.name)}</strong></td><td class="tag-green">${relationMarkup}</td><td><div class="actions"><button class="button action-edit" data-action="edit-entity" data-kind="${kind}" data-id="${item.id}">Изменить</button><button class="button danger action-delete" data-action="delete-entity" data-kind="${kind}" data-id="${item.id}" data-name="${esc(item.name)}">Удалить</button></div></td></tr>`;
-    }).join("")}</tbody></table></div>`;
+    const sortedItems = sortByName(items, direction);
+    return `<div class="table-wrap"><table><thead><tr><th>ID</th><th><button class="sort-button" data-entity-sort="${kind}">НАЗВАНИЕ ${direction === "asc" ? "↑" : "↓"}</button></th><th>Связи</th><th></th></tr></thead><tbody>${sortedItems.map(item => `<tr><td class="muted">#${item.id}</td><td><strong>${esc(item.name)}</strong></td><td class="tag-green">${getEntityRelationMarkup(kind, item.name)}</td><td><div class="actions"><button class="button action-edit" data-action="edit-entity" data-kind="${kind}" data-id="${item.id}">Изменить</button><button class="button danger action-delete" data-action="delete-entity" data-kind="${kind}" data-id="${item.id}" data-name="${esc(item.name)}">Удалить</button></div></td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function render() {
@@ -150,60 +162,115 @@ function render() {
     bind();
 }
 
-function bind() {
-    document.querySelectorAll("form").forEach(form => { form.noValidate = true; });
-    document.querySelectorAll("[data-page]").forEach(button => button.onclick = () => { location.hash = button.dataset.page; });
+function bindModSort() {
     const modSortButton = document.querySelector("[data-sort='name']");
-    if (modSortButton) modSortButton.addEventListener("click", () => {
+    if (!modSortButton) return;
+    modSortButton.addEventListener("click", () => {
         state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
         state.modPage = 1;
         render();
     });
-    document.querySelectorAll("[data-entity-sort]").forEach(button => button.onclick = () => {
-        const kind = button.dataset.entitySort;
-        state.entitySortDirections[kind] = state.entitySortDirections[kind] === "asc" ? "desc" : "asc";
-        render();
+}
+
+function bindEntitySort() {
+    document.querySelectorAll("[data-entity-sort]").forEach(button => {
+        button.onclick = () => {
+            const kind = button.dataset.entitySort;
+            state.entitySortDirections[kind] = state.entitySortDirections[kind] === "asc" ? "desc" : "asc";
+            render();
+        };
     });
-    document.querySelectorAll("[data-page-action]").forEach(button => button.onclick = () => { state.modPage += button.dataset.pageAction === "next" ? 1 : -1; render(); });
-    document.querySelectorAll("[data-action]").forEach(button => button.onclick = () => handleAction(button.dataset.action, button.dataset).catch(error => toast(error.message, true)));
+}
+
+function bindPageActions() {
+    document.querySelectorAll("[data-page-action]").forEach(button => {
+        button.onclick = () => {
+            state.modPage += button.dataset.pageAction === "next" ? 1 : -1;
+            render();
+        };
+    });
+}
+
+function bindFormControls() {
     const addTag = document.querySelector("#add-tag");
-    if (addTag) addTag.onclick = () => {
-        const tags = document.querySelector("#tags");
-        tags.insertAdjacentHTML("beforeend", `<div class="tag-row"><input name="tagName" list="tags-list" value=""><button type="button" class="button danger remove-tag">Удалить</button></div>`);
-        bindTagRows();
-    };
+    if (addTag) {
+        addTag.onclick = () => {
+            const tags = document.querySelector("#tags");
+            tags.insertAdjacentHTML("beforeend", `<div class="tag-row"><input name="tagName" list="tags-list" value=""><button type="button" class="button danger remove-tag">Удалить</button></div>`);
+            bindTagRows();
+        };
+    }
     bindTagRows();
     const addVersion = document.querySelector("#add-version");
-    if (addVersion) addVersion.onclick = () => {
-        const versions = document.querySelector("#versions");
-        const index = versions.querySelectorAll("[data-version-row]").length + 1;
-        versions.insertAdjacentHTML("beforeend", `<div class="version-row" data-version-row><div class="field"><label>Версия ${index}</label><input name="versionName" required value=""></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="0"></div><button type="button" class="button danger remove-version">Удалить</button></div>`);
-        bindVersionRows();
-    };
+    if (addVersion) {
+        addVersion.onclick = () => {
+            const versions = document.querySelector("#versions");
+            const index = versions.querySelectorAll("[data-version-row]").length + 1;
+            versions.insertAdjacentHTML("beforeend", `<div class="version-row" data-version-row><div class="field"><label>Версия ${index}</label><input name="versionName" required value=""></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="0"></div><button type="button" class="button danger remove-version">Удалить</button></div>`);
+            bindVersionRows();
+        };
+    }
     bindVersionRows();
+}
+
+function bindSearchControls() {
     const search = document.querySelector("#search");
-    if (search) ["search", "author-filter", "category-filter", "tag-filter"].forEach(id => document.querySelector(`#${id}`).oninput = filterMods);
+    if (search) {
+        ["search", "author-filter", "category-filter", "tag-filter"].forEach(id => {
+            const element = document.querySelector(`#${id}`);
+            if (element) element.oninput = filterMods;
+        });
+    }
     const entitySearch = document.querySelector("#entity-search");
-    if (entitySearch) entitySearch.oninput = () => {
-        const items = state[state.page].filter(item => item.name.toLowerCase().includes(entitySearch.value.toLowerCase()));
-        document.querySelector("#entity-list").innerHTML = entityTable(state.page, items);
-        bind();
-    };
+    if (entitySearch) {
+        entitySearch.oninput = () => {
+            const items = state[state.page].filter(item => item.name.toLowerCase().includes(entitySearch.value.toLowerCase()));
+            document.querySelector("#entity-list").innerHTML = entityTable(state.page, items);
+            bind();
+        };
+    }
     const clear = document.querySelector("#clear-filters");
-    if (clear) clear.onclick = () => { ["search", "author-filter", "category-filter", "tag-filter"].forEach(id => document.querySelector(`#${id}`).value = ""); filterMods(); };
+    if (clear) {
+        clear.onclick = () => {
+            ["search", "author-filter", "category-filter", "tag-filter"].forEach(id => {
+                const element = document.querySelector(`#${id}`);
+                if (element) element.value = "";
+            });
+            filterMods();
+        };
+    }
+}
+
+function bind() {
+    document.querySelectorAll("form").forEach(form => { form.noValidate = true; });
+    document.querySelectorAll("[data-page]").forEach(button => {
+        button.onclick = () => { location.hash = button.dataset.page; };
+    });
+    bindModSort();
+    bindEntitySort();
+    bindPageActions();
+    document.querySelectorAll("[data-action]").forEach(button => {
+        button.onclick = () => handleAction(button.dataset.action, button.dataset).catch(error => toast(error.message, true));
+    });
+    bindFormControls();
+    bindSearchControls();
 }
 
 function bindVersionRows() {
-    document.querySelectorAll(".remove-version").forEach(button => button.onclick = () => {
-        const rows = document.querySelectorAll("[data-version-row]");
-        if (rows.length > 1) button.closest("[data-version-row]").remove();
+    document.querySelectorAll(".remove-version").forEach(button => {
+        button.onclick = () => {
+            const rows = document.querySelectorAll("[data-version-row]");
+            if (rows.length > 1) button.closest("[data-version-row]").remove();
+        };
     });
 }
 
 function bindTagRows() {
-    document.querySelectorAll(".remove-tag").forEach(button => button.onclick = () => {
-        const rows = document.querySelectorAll(".tag-row");
-        if (rows.length > 1) button.closest(".tag-row").remove();
+    document.querySelectorAll(".remove-tag").forEach(button => {
+        button.onclick = () => {
+            const rows = document.querySelectorAll(".tag-row");
+            if (rows.length > 1) button.closest(".tag-row").remove();
+        };
     });
 }
 

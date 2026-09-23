@@ -28,6 +28,12 @@ const state = { page: location.hash.slice(1) || "mods", mods: [], authors: [], c
 const labels = { mods: "Моды", authors: "Авторы", categories: "Категории", tags: "Теги" };
 const esc = value => String(value == null ? "" : value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 const list = value => Array.isArray(value) ? value : [];
+function textValue(value) {
+    if (typeof value === "string") return value;
+    if (value == null) return "";
+    return value.name || "";
+}
+
 const chipMarkup = value => `<span class="chip">${esc(value)}</span>`;
 const chips = values => {
     const valuesList = list(values);
@@ -397,12 +403,12 @@ document.addEventListener("submit", async event => {
             const id = event.target.dataset.id;
             const versionNames = form.getAll("versionName");
             const downloadCounts = form.getAll("downloadCount");
-            const normalizedVersions = versionNames.map(name => String(name ?? "").trim().toLowerCase()).filter(Boolean);
+            const normalizedVersions = versionNames.map(name => textValue(name).trim().toLowerCase()).filter(Boolean);
             if (new Set(normalizedVersions).size !== normalizedVersions.length) {
                 toast("У одного мода не может быть одинаковых версий", true);
                 return;
             }
-            const tagNames = form.getAll("tagName").map(tag => String(tag ?? "").trim()).filter(Boolean);
+            const tagNames = form.getAll("tagName").map(tag => textValue(tag).trim()).filter(Boolean);
             const payload = { name: form.get("name"), description: form.get("description"), authorName: form.get("authorName"), categoryNames: [form.get("categoryName")].filter(Boolean), tagNames, versions: versionNames.map((versionName, index) => ({ versionName, downloadCount: Number(downloadCounts[index] || 0) })) };
             if (id) await api.save(`/mods/${id}`, payload, "PUT"); else await api.save("/mods", [payload]);
         } else {
@@ -428,4 +434,6 @@ window.addEventListener("hashchange", () => {
     state.modal = "";
     render();
 });
-void loadData();
+document.addEventListener("DOMContentLoaded", () => {
+    loadData();
+});

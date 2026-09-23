@@ -3,7 +3,7 @@ const api = {
         let response;
         try {
             response = await fetch(`/api${path}`, {
-                headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+                headers: { "Content-Type": "application/json", ...options.headers },
                 ...options
             });
         } catch (_) {
@@ -28,7 +28,11 @@ const state = { page: location.hash.slice(1) || "mods", mods: [], authors: [], c
 const labels = { mods: "Моды", authors: "Авторы", categories: "Категории", tags: "Теги" };
 const esc = value => String(value == null ? "" : value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 const list = value => Array.isArray(value) ? value : [];
-const chips = values => list(values).length ? `<div class="chips">${list(values).map(value => `<span class="chip">${esc(value)}</span>`).join("")}</div>` : `<span class="muted">—</span>`;
+const chipMarkup = value => `<span class="chip">${esc(value)}</span>`;
+const chips = values => {
+    const valuesList = list(values);
+    return valuesList.length ? `<div class="chips">${valuesList.map(chipMarkup).join("")}</div>` : `<span class="muted">—</span>`;
+};
 const russianError = message => ({
     "Internal server error": "Внутренняя ошибка сервера",
     "Validation failed": "Проверьте введенные данные",
@@ -79,15 +83,45 @@ const getEntityRelationMarkup = (kind, itemName) => {
     const relatedNames = relatedMods
         .map(mod => mod.name)
         .sort((left, right) => left.localeCompare(right, "ru", { sensitivity: "base" }));
-    return `<span class="relation" tabindex="0">${relation} мод.<span class="relation-popover">${relatedNames.map(name => `<span>${esc(name)}</span>`).join("")}</span></span>`;
+    const relatedMarkup = relatedNames.map(name => `<span>${esc(name)}</span>`).join("");
+    return `<span class="relation" tabindex="0">${relation} мод.<span class="relation-popover">${relatedMarkup}</span></span>`;
+};
+
+function parseHtml(html) {
+    return new DOMParser().parseFromString(html, "text/html").body;
+}
+
+function replaceHtml(element, html) {
+    const parsed = parseHtml(html);
+    element.replaceChildren(...parsed.childNodes);
+}
+
+function appendHtml(element, html) {
+    const parsed = parseHtml(html);
+    element.append(...parsed.childNodes);
+}
+
+function replaceElementHtml(element, html) {
+    const parsed = parseHtml(html);
+    element.replaceWith(...parsed.childNodes);
+}
+
+const pageIcon = {
+    mods: "◆",
+    authors: "◎",
+    categories: "▦",
+    tags: "◇"
 };
 
 function appShell(content) {
+    const navigation = Object.entries(labels)
+        .map(([key, label]) => `<button class="${state.page === key ? "active" : ""}" data-page="${key}">${pageIcon[key]} &nbsp;${label}</button>`)
+        .join("");
     return `<div class="shell">
         <header class="topbar"><div class="brand"><div class="brand-mark">✦</div><div><h1>ModAtlas</h1><p>каталог Minecraft модов</p></div></div>
         </header>
         <div class="layout"><aside class="sidebar"><div class="nav-label">Рабочая область</div><nav class="nav">
-        ${Object.entries(labels).map(([key, label]) => `<button class="${state.page === key ? "active" : ""}" data-page="${key}">${key === "mods" ? "◆" : key === "authors" ? "◎" : key === "categories" ? "▦" : "◇"} &nbsp;${label}</button>`).join("")}
+        ${navigation}
         </nav></aside><main class="main">${content}</main></div></div>`;
 }
 
@@ -105,7 +139,16 @@ async function loadData() {
 
 function modTable(mods, withActions = true) {
     if (!mods.length) return `<div class="empty">Моды не найдены. Измените фильтры или добавьте первую запись.</div>`;
-    return `<div class="table-wrap"><table><thead><tr><th><button class="sort-button" data-sort="name">НАЗВАНИЕ ${state.sortDirection === "asc" ? "↑" : "↓"}</button></th><th>Автор</th><th>Категория</th><th>Теги</th><th>Версии</th>${withActions ? "<th></th>" : ""}</tr></thead><tbody>${mods.map(mod => `<tr><td class="description-cell"><strong>${esc(mod.name)}</strong><br><span class="muted">${esc(mod.description)}</span></td><td>${esc(mod.authorName)}</td><td class="category-cell"><span class="chip">${esc(mod.categoryName || "Без категории")}</span></td><td>${chips(mod.tags)}</td><td class="versions-cell">${list(mod.versions).map(version => `<div>${esc(version.versionName)} <span class="muted">· ${version.downloadCount.toLocaleString("ru-RU")}</span></div>`).join("") || '<span class="muted">—</span>'}</td>${withActions ? `<td><div class="actions"><button class="button action-edit" data-action="edit-mod" data-id="${mod.id}">Изменить</button><button class="button danger action-delete" data-action="delete-mod" data-id="${mod.id}" data-name="${esc(mod.name)}">Удалить</button></div></td>` : ""}</tr>`).join("")}</tbody></table></div>`;
+    const direction = state.sortDirection === "asc" ? "↑" : "↓";
+    const actionHeader = withActions ? "<th></th>" : "";
+    const rows = mods.map(mod => modTableRow(mod, withActions)).join("");
+    return `<div class="table-wrap"><table><thead><tr><th><button class="sort-button" data-sort="name">НАЗВАНИЕ ${direction}</button></th><th>Автор</th><th>Категория</th><th>Теги</th><th>Версии</th>${actionHeader}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function modTableRow(mod, withActions) {
+    const versions = list(mod.versions).map(version => `<div>${esc(version.versionName)} <span class="muted">· ${version.downloadCount.toLocaleString("ru-RU")}</span></div>`).join("") || '<span class="muted">—</span>';
+    const actions = withActions ? `<td><div class="actions"><button class="button action-edit" data-action="edit-mod" data-id="${mod.id}">Изменить</button><button class="button danger action-delete" data-action="delete-mod" data-id="${mod.id}" data-name="${esc(mod.name)}">Удалить</button></div></td>` : "";
+    return `<tr><td class="description-cell"><strong>${esc(mod.name)}</strong><br><span class="muted">${esc(mod.description)}</span></td><td>${esc(mod.authorName)}</td><td class="category-cell"><span class="chip">${esc(mod.categoryName || "Без категории")}</span></td><td>${chips(mod.tags)}</td><td class="versions-cell">${versions}</td>${actions}</tr>`;
 }
 
 function modsPage() {
@@ -114,7 +157,8 @@ function modsPage() {
 }
 
 function dataLists() {
-    return `<datalist id="authors-list">${state.authors.map(item => `<option value="${esc(item.name)}">`).join("")}</datalist><datalist id="categories-list">${state.categories.map(item => `<option value="${esc(item.name)}">`).join("")}</datalist><datalist id="tags-list">${state.tags.map(item => `<option value="${esc(item.name)}">`).join("")}</datalist>`;
+    const options = items => items.map(item => `<option value="${esc(item.name)}">`).join("");
+    return `<datalist id="authors-list">${options(state.authors)}</datalist><datalist id="categories-list">${options(state.categories)}</datalist><datalist id="tags-list">${options(state.tags)}</datalist>`;
 }
 
 function catalogContent() {
@@ -143,22 +187,42 @@ function catalogContent() {
 function entityPage(kind) {
     const items = state[kind];
     const title = labels[kind];
-    const singular = kind === "categories" ? "категорию" : kind === "authors" ? "автора" : "тег";
+    const singular = entitySingular(kind);
     const listId = `${kind}-list`;
+    const options = items.map(item => `<option value="${esc(item.name)}">`).join("");
     return `<div class="page-heading"><div><div class="eyebrow">Справочник</div><h2>${title}</h2></div><button class="button primary" data-action="new-entity" data-kind="${kind}">＋ Добавить ${singular}</button></div>
-    <section class="panel"><div class="toolbar"><input id="entity-search" list="${listId}" placeholder="Поиск по названию"></div><div id="entity-list">${entityTable(kind, items)}</div><datalist id="${listId}">${items.map(item => `<option value="${esc(item.name)}">`).join("")}</datalist></section>`;
+    <section class="panel"><div class="toolbar"><input id="entity-search" list="${listId}" placeholder="Поиск по названию"></div><div id="entity-list">${entityTable(kind, items)}</div><datalist id="${listId}">${options}</datalist></section>`;
+}
+
+function entitySingular(kind) {
+    if (kind === "categories") return "категорию";
+    if (kind === "authors") return "автора";
+    return "тег";
 }
 
 function entityTable(kind, items) {
     if (!items.length) return `<div class="empty">Записей пока нет.</div>`;
     const direction = state.entitySortDirections[kind];
     const sortedItems = sortByName(items, direction);
-    return `<div class="table-wrap"><table><thead><tr><th>ID</th><th><button class="sort-button" data-entity-sort="${kind}">НАЗВАНИЕ ${direction === "asc" ? "↑" : "↓"}</button></th><th>Связи</th><th></th></tr></thead><tbody>${sortedItems.map(item => `<tr><td class="muted">#${item.id}</td><td><strong>${esc(item.name)}</strong></td><td class="tag-green">${getEntityRelationMarkup(kind, item.name)}</td><td><div class="actions"><button class="button action-edit" data-action="edit-entity" data-kind="${kind}" data-id="${item.id}">Изменить</button><button class="button danger action-delete" data-action="delete-entity" data-kind="${kind}" data-id="${item.id}" data-name="${esc(item.name)}">Удалить</button></div></td></tr>`).join("")}</tbody></table></div>`;
+    const arrow = direction === "asc" ? "↑" : "↓";
+    const rows = sortedItems.map(item => entityTableRow(kind, item)).join("");
+    return `<div class="table-wrap"><table><thead><tr><th>ID</th><th><button class="sort-button" data-entity-sort="${kind}">НАЗВАНИЕ ${arrow}</button></th><th>Связи</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function entityTableRow(kind, item) {
+    return `<tr><td class="muted">#${item.id}</td><td><strong>${esc(item.name)}</strong></td><td class="tag-green">${getEntityRelationMarkup(kind, item.name)}</td><td><div class="actions"><button class="button action-edit" data-action="edit-entity" data-kind="${kind}" data-id="${item.id}">Изменить</button><button class="button danger action-delete" data-action="delete-entity" data-kind="${kind}" data-id="${item.id}" data-name="${esc(item.name)}">Удалить</button></div></td></tr>`;
 }
 
 function render() {
-    const content = state.loading ? `<div class="loading">Загрузка данных…</div>` : state.page === "mods" ? modsPage() : entityPage(state.page);
-    document.querySelector("#app").innerHTML = appShell(content) + (state.modal || "");
+    let content;
+    if (state.loading) {
+        content = `<div class="loading">Загрузка данных…</div>`;
+    } else if (state.page === "mods") {
+        content = modsPage();
+    } else {
+        content = entityPage(state.page);
+    }
+    replaceHtml(document.querySelector("#app"), appShell(content) + (state.modal || ""));
     bind();
 }
 
@@ -196,7 +260,7 @@ function bindFormControls() {
     if (addTag) {
         addTag.onclick = () => {
             const tags = document.querySelector("#tags");
-            tags.insertAdjacentHTML("beforeend", `<div class="tag-row"><input name="tagName" list="tags-list" value=""><button type="button" class="button danger remove-tag">Удалить</button></div>`);
+            appendHtml(tags, `<div class="tag-row"><input name="tagName" list="tags-list" value=""><button type="button" class="button danger remove-tag">Удалить</button></div>`);
             bindTagRows();
         };
     }
@@ -206,7 +270,7 @@ function bindFormControls() {
         addVersion.onclick = () => {
             const versions = document.querySelector("#versions");
             const index = versions.querySelectorAll("[data-version-row]").length + 1;
-            versions.insertAdjacentHTML("beforeend", `<div class="version-row" data-version-row><div class="field"><label>Версия ${index}</label><input name="versionName" required value=""></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="0"></div><button type="button" class="button danger remove-version">Удалить</button></div>`);
+            appendHtml(versions, `<div class="version-row" data-version-row><div class="field"><label>Версия ${index}</label><input name="versionName" required value=""></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="0"></div><button type="button" class="button danger remove-version">Удалить</button></div>`);
             bindVersionRows();
         };
     }
@@ -225,7 +289,7 @@ function bindSearchControls() {
     if (entitySearch) {
         entitySearch.oninput = () => {
             const items = state[state.page].filter(item => item.name.toLowerCase().includes(entitySearch.value.toLowerCase()));
-            document.querySelector("#entity-list").innerHTML = entityTable(state.page, items);
+            replaceHtml(document.querySelector("#entity-list"), entityTable(state.page, items));
             bind();
         };
     }
@@ -276,7 +340,7 @@ function bindTagRows() {
 
 function filterMods() {
     state.modPage = 1;
-    document.querySelector("#catalog-content").outerHTML = catalogContent();
+    replaceElementHtml(document.querySelector("#catalog-content"), catalogContent());
     bind();
 }
 
@@ -294,8 +358,14 @@ function modForm(mod = {}) {
 }
 
 function entityForm(kind, item = {}) {
-    const title = kind === "categories" ? "категории" : kind === "authors" ? "автора" : "тега";
+    const title = entityFormTitle(kind);
     return `<form id="entity-form" novalidate data-kind="${kind}" data-id="${item.id || ""}"><div class="field"><label>Название ${title}</label><input name="name" list="${kind}-list" required maxlength="255" value="${esc(item.name)}"></div><div class="modal-actions"><button type="button" class="button" data-action="close-modal">Отмена</button><button class="button primary">${item.id ? "Сохранить" : "Создать"}</button></div></form>`;
+}
+
+function entityFormTitle(kind) {
+    if (kind === "categories") return "категории";
+    if (kind === "authors") return "автора";
+    return "тега";
 }
 
 async function handleAction(action, data) {
@@ -327,12 +397,12 @@ document.addEventListener("submit", async event => {
             const id = event.target.dataset.id;
             const versionNames = form.getAll("versionName");
             const downloadCounts = form.getAll("downloadCount");
-            const normalizedVersions = versionNames.map(name => String(name).trim().toLowerCase()).filter(Boolean);
+            const normalizedVersions = versionNames.map(name => String(name ?? "").trim().toLowerCase()).filter(Boolean);
             if (new Set(normalizedVersions).size !== normalizedVersions.length) {
                 toast("У одного мода не может быть одинаковых версий", true);
                 return;
             }
-            const tagNames = form.getAll("tagName").map(tag => String(tag).trim()).filter(Boolean);
+            const tagNames = form.getAll("tagName").map(tag => String(tag ?? "").trim()).filter(Boolean);
             const payload = { name: form.get("name"), description: form.get("description"), authorName: form.get("authorName"), categoryNames: [form.get("categoryName")].filter(Boolean), tagNames, versions: versionNames.map((versionName, index) => ({ versionName, downloadCount: Number(downloadCounts[index] || 0) })) };
             if (id) await api.save(`/mods/${id}`, payload, "PUT"); else await api.save("/mods", [payload]);
         } else {
@@ -358,4 +428,4 @@ window.addEventListener("hashchange", () => {
     state.modal = "";
     render();
 });
-loadData();
+void loadData();

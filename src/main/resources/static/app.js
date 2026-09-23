@@ -354,7 +354,6 @@ function bindSearchControls() {
     if (entitySearch) {
         entitySearch.oninput = () => {
             state.entityPages[state.page] = 1;
-            const items = state[state.page].filter(item => item.name.toLowerCase().includes(entitySearch.value.toLowerCase()));
             render();
         };
     }

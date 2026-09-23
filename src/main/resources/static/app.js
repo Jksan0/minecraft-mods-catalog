@@ -24,7 +24,7 @@ const api = {
     remove: path => api.request(path, { method: "DELETE" })
 };
 
-const state = { page: location.hash.slice(1) || "mods", mods: [], authors: [], categories: [], tags: [], versions: [], loading: false, modPage: 1, pageSize: 7, sortDirection: "asc", entitySortDirections: { authors: "asc", categories: "asc", tags: "asc" } };
+const state = { page: location.hash.slice(1) || "mods", mods: [], authors: [], categories: [], tags: [], versions: [], loading: false, modPage: 1, pageSize: 7, entityPages: { authors: 1, categories: 1, tags: 1 }, entityPageSize: 10, sortDirection: "asc", entitySortDirections: { authors: "asc", categories: "asc", tags: "asc" } };
 const labels = { mods: "Моды", authors: "Авторы", categories: "Категории", tags: "Теги" };
 const esc = value => String(value == null ? "" : value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 const list = value => Array.isArray(value) ? value : [];
@@ -32,6 +32,35 @@ function textValue(value) {
     if (typeof value === "string") return value;
     if (value == null) return "";
     return value.name || "";
+}
+
+function bindEntityPageActions() {
+    document.querySelectorAll("[data-entity-page-action]").forEach(button => {
+        button.onclick = () => {
+            const kind = state.page;
+            state.entityPages[kind] += button.dataset.entityPageAction === "next" ? 1 : -1;
+            renderEntityContent();
+        };
+    });
+    document.querySelectorAll("[data-entity-page]").forEach(select => {
+        select.onchange = () => {
+            state.entityPages[select.dataset.entityPage] = Number(select.value);
+            renderEntityContent();
+        };
+    });
+}
+
+function currentEntityItems() {
+    const search = document.querySelector("#entity-search");
+    const query = search ? search.value.toLowerCase() : "";
+    return state[state.page].filter(item => item.name.toLowerCase().includes(query));
+}
+
+function renderEntityContent(items) {
+    const sourceItems = items || currentEntityItems();
+    replaceHtml(document.querySelector("#entity-list"), entityContent(state.page, sourceItems));
+    bindEntityPageActions();
+    bind();
 }
 
 const chipMarkup = value => `<span class="chip">${esc(value)}</span>`;
@@ -197,7 +226,7 @@ function entityPage(kind) {
     const listId = `${kind}-list`;
     const options = items.map(item => `<option value="${esc(item.name)}">`).join("");
     return `<div class="page-heading"><div><div class="eyebrow">Справочник</div><h2>${title}</h2></div><button class="button primary" data-action="new-entity" data-kind="${kind}">＋ Добавить ${singular}</button></div>
-    <section class="panel"><div class="toolbar"><input id="entity-search" list="${listId}" placeholder="Поиск по названию"></div><div id="entity-list">${entityTable(kind, items)}</div><datalist id="${listId}">${options}</datalist></section>`;
+    <section class="panel"><div class="toolbar"><input id="entity-search" list="${listId}" placeholder="Поиск по названию"></div><div id="entity-list">${entityContent(kind, items)}</div><datalist id="${listId}">${options}</datalist></section>`;
 }
 
 function entitySingular(kind) {
@@ -213,6 +242,20 @@ function entityTable(kind, items) {
     const arrow = direction === "asc" ? "↑" : "↓";
     const rows = sortedItems.map(item => entityTableRow(kind, item)).join("");
     return `<div class="table-wrap"><table><thead><tr><th>ID</th><th><button class="sort-button" data-entity-sort="${kind}">НАЗВАНИЕ ${arrow}</button></th><th>Связи</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function entityContent(kind, items) {
+    const sortedItems = sortByName(items, state.entitySortDirections[kind]);
+    const pages = Math.max(1, Math.ceil(sortedItems.length / state.entityPageSize));
+    state.entityPages[kind] = Math.min(state.entityPages[kind], pages);
+    const start = (state.entityPages[kind] - 1) * state.entityPageSize;
+    const pageItems = sortedItems.slice(start, start + state.entityPageSize);
+    const options = Array.from({ length: pages }, (_, index) => {
+        const page = index + 1;
+        const selected = page === state.entityPages[kind] ? "selected" : "";
+        return `<option value="${page}" ${selected}>${page}</option>`;
+    }).join("");
+    return `${entityTable(kind, pageItems)}<div class="pagination entity-pagination"><button class="button" data-entity-page-action="prev" ${state.entityPages[kind] === 1 ? "disabled" : ""}>‹ Назад</button><label>Страница <select data-entity-page="${kind}">${options}</select> из ${pages}</label><button class="button" data-entity-page-action="next" ${state.entityPages[kind] === pages ? "disabled" : ""}>Вперед ›</button></div>`;
 }
 
 function entityTableRow(kind, item) {
@@ -295,8 +338,8 @@ function bindSearchControls() {
     if (entitySearch) {
         entitySearch.oninput = () => {
             const items = state[state.page].filter(item => item.name.toLowerCase().includes(entitySearch.value.toLowerCase()));
-            replaceHtml(document.querySelector("#entity-list"), entityTable(state.page, items));
-            bind();
+            state.entityPages[state.page] = 1;
+            renderEntityContent(items);
         };
     }
     const clear = document.querySelector("#clear-filters");
@@ -319,6 +362,7 @@ function bind() {
     bindModSort();
     bindEntitySort();
     bindPageActions();
+    bindEntityPageActions();
     document.querySelectorAll("[data-action]").forEach(button => {
         button.onclick = () => handleAction(button.dataset.action, button.dataset).catch(error => toast(error.message, true));
     });

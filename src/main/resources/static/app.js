@@ -190,9 +190,21 @@ function catalogContent() {
     return `<div id="catalog-content">${modTable(filtered.slice(start, start + state.pageSize))}${modPagination(pages)}</div>`;
 }
 
+function paginationItems(currentPage, totalPages) {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+    const items = [1];
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    if (start > 2) items.push("ellipsis-left");
+    for (let page = start; page <= end; page += 1) items.push(page);
+    if (end < totalPages - 1) items.push("ellipsis-right");
+    items.push(totalPages);
+    return items;
+}
+
 function modPagination(pages) {
-    const pageButtons = Array.from({ length: pages }, (_, index) => {
-        const page = index + 1;
+    const pageButtons = paginationItems(state.modPage, pages).map(page => {
+        if (typeof page !== "number") return `<span class="pagination-ellipsis">…</span>`;
         const active = page === state.modPage ? " primary" : "";
         return `<button class="button page-number${active}" data-mod-page="${page}" ${page === state.modPage ? "disabled" : ""}>${page}</button>`;
     }).join("");
@@ -238,8 +250,8 @@ function entityTableRow(kind, item) {
 
 function entityPagination(kind, pages) {
     const currentPage = state.entityPages[kind];
-    const pageButtons = Array.from({ length: pages }, (_, index) => {
-        const page = index + 1;
+    const pageButtons = paginationItems(currentPage, pages).map(page => {
+        if (typeof page !== "number") return `<span class="pagination-ellipsis">…</span>`;
         const active = page === currentPage ? " primary" : "";
         return `<button class="button page-number${active}" data-entity-page="${page}" data-entity-kind="${kind}" ${page === currentPage ? "disabled" : ""}>${page}</button>`;
     }).join("");

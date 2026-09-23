@@ -28,6 +28,7 @@ public class CategoryServiceImpl implements CategoryService {
     public List<CategoryDto> getAllCategories() {
         return categoryRepository.findAll().stream()
                 .map(CategoryMapper::toDto)
+                .sorted(java.util.Comparator.comparing(CategoryDto::getName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 

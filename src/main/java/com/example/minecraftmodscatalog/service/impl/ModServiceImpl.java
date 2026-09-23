@@ -50,6 +50,7 @@ public class ModServiceImpl implements ModService {
     public List<ModDto> getAllMods() {
         return modRepository.findAllWithGraph().stream()
                 .map(ModMapper::toDto)
+                .sorted(java.util.Comparator.comparing(ModDto::getName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
@@ -438,8 +439,14 @@ public class ModServiceImpl implements ModService {
         if (dto.getVersions() == null || dto.getVersions().isEmpty()) {
             throw new IllegalArgumentException("At least one mod version is required");
         }
+        Set<String> versionNames = new java.util.HashSet<>();
         for (var version : dto.getVersions()) {
             validateVersion(version);
+            String normalizedName = version.getVersionName().trim().toLowerCase(Locale.ROOT);
+            if (!versionNames.add(normalizedName)) {
+                throw new IllegalArgumentException("У одного мода не может быть одинаковых версий: "
+                        + version.getVersionName().trim());
+            }
         }
     }
 

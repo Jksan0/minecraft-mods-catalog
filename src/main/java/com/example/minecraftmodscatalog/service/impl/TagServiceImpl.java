@@ -29,6 +29,7 @@ public class TagServiceImpl implements TagService {
     public List<TagDto> getAllTags() {
         return tagRepository.findAll().stream()
                 .map(TagMapper::toDto)
+                .sorted(java.util.Comparator.comparing(TagDto::getName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 

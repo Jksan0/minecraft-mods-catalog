@@ -28,6 +28,7 @@ public class AuthorServiceImpl implements AuthorService {
     public List<AuthorDto> getAllAuthors() {
         return authorRepository.findAll().stream()
                 .map(AuthorMapper::toDto)
+                .sorted(java.util.Comparator.comparing(AuthorDto::getName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 

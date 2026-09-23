@@ -187,7 +187,16 @@ function catalogContent() {
     const pages = Math.max(1, Math.ceil(filtered.length / state.pageSize));
     state.modPage = Math.min(state.modPage, pages);
     const start = (state.modPage - 1) * state.pageSize;
-    return `<div id="catalog-content">${modTable(filtered.slice(start, start + state.pageSize))}<div class="pagination"><button class="button" data-page-action="prev" ${state.modPage === 1 ? "disabled" : ""}>‹ Назад</button><span>Страница ${state.modPage} из ${pages}</span><button class="button" data-page-action="next" ${state.modPage === pages ? "disabled" : ""}>Вперед ›</button></div></div>`;
+    return `<div id="catalog-content">${modTable(filtered.slice(start, start + state.pageSize))}${modPagination(pages)}</div>`;
+}
+
+function modPagination(pages) {
+    const pageButtons = Array.from({ length: pages }, (_, index) => {
+        const page = index + 1;
+        const active = page === state.modPage ? " primary" : "";
+        return `<button class="button page-number${active}" data-mod-page="${page}" ${page === state.modPage ? "disabled" : ""}>${page}</button>`;
+    }).join("");
+    return `<div class="pagination"><button class="button" data-page-action="prev" ${state.modPage === 1 ? "disabled" : ""}>‹ Назад</button><div class="page-numbers">${pageButtons}</div><button class="button" data-page-action="next" ${state.modPage === pages ? "disabled" : ""}>Вперед ›</button></div>`;
 }
 
 function entityPage(kind) {
@@ -275,6 +284,12 @@ function bindPageActions() {
     document.querySelectorAll("[data-page-action]").forEach(button => {
         button.onclick = () => {
             state.modPage += button.dataset.pageAction === "next" ? 1 : -1;
+            render();
+        };
+    });
+    document.querySelectorAll("[data-mod-page]").forEach(button => {
+        button.onclick = () => {
+            state.modPage = Number(button.dataset.modPage);
             render();
         };
     });

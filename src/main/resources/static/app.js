@@ -1,13 +1,22 @@
 const api = {
     async request(path, options = {}) {
+        const timeoutMs = options.timeout ?? 15000;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
         let response;
         try {
             response = await fetch(`/api${path}`, {
                 headers: { "Content-Type": "application/json", ...options.headers },
-                ...options
+                ...options,
+                signal: controller.signal
             });
-        } catch (_) {
+        } catch (error) {
+            if (error.name === "AbortError") {
+                throw new Error("Сервер долго отвечает. Проверьте соединение и повторите попытку.");
+            }
             throw new Error("Сервер недоступен. Проверьте подключение и попробуйте снова.");
+        } finally {
+            clearTimeout(timer);
         }
         if (!response.ok) {
             let message = `Ошибка API (${response.status})`;
@@ -135,12 +144,32 @@ async function loadData() {
     state.loading = true;
     render();
     try {
-        const [mods, authors, categories, tags] = await Promise.all([api.get("/mods"), api.get("/authors"), api.get("/categories"), api.get("/tags")]);
-        state.mods = mods; state.authors = authors; state.categories = categories; state.tags = tags;
-        state.versions = (await Promise.all(mods.map(mod => api.get(`/mod-versions?modId=${mod.id}`)))).flat();
-    } catch (error) { toast(error.message, true); }
-    state.loading = false;
-    render();
+        const results = await Promise.allSettled([
+            api.get("/mods"),
+            api.get("/authors"),
+            api.get("/categories"),
+            api.get("/tags")
+        ]);
+
+        const [modsResult, authorsResult, categoriesResult, tagsResult] = results;
+        state.mods = modsResult.status === "fulfilled" ? modsResult.value : [];
+        state.authors = authorsResult.status === "fulfilled" ? authorsResult.value : [];
+        state.categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : [];
+        state.tags = tagsResult.status === "fulfilled" ? tagsResult.value : [];
+
+        const versionsResult = await Promise.allSettled(state.mods.map(mod => api.get(`/mod-versions?modId=${mod.id}`)));
+        state.versions = versionsResult.flatMap(result => result.status === "fulfilled" ? result.value : []);
+
+        const failed = results.find(result => result.status === "rejected");
+        if (failed) {
+            throw failed.reason;
+        }
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        state.loading = false;
+        render();
+    }
 }
 
 function modTable(mods, withActions = true) {
@@ -158,7 +187,7 @@ function modTableRow(mod, withActions) {
 }
 
 function modsPage() {
-    return `<div class="page-heading"><div><div class="eyebrow">Каталог</div><h2>Моды</h2></div><button class="button primary" data-action="new-mod">＋ Добавить мод</button></div>
+    return `<div class="page-heading"><div><div class="eyebrow">Каталог</div><h2>Моды</h2></div><button class="button primary" data-action="new-mod">＋ Добавить мод(ы)</button></div>
     <section class="panel"><div class="toolbar"><input id="search" placeholder="Поиск по названию и описанию"><input id="author-filter" list="authors-list" placeholder="Автор"><input id="category-filter" list="categories-list" placeholder="Категория"><input id="tag-filter" list="tags-list" placeholder="Тег"><button class="button" id="clear-filters">Сбросить</button></div>${catalogContent()}${dataLists()}</section>`;
 }
 
@@ -321,73 +350,63 @@ function bindPageActions() {
 }
 
 function bindFormControls() {
-    const addTag = document.querySelector("#add-tag");
-    if (addTag) {
-        addTag.onclick = () => {
-            const tags = document.querySelector("#tags");
-            appendHtml(tags, `<div class="tag-row"><input name="tagName" list="tags-list" value=""><button type="button" class="button danger remove-tag">Удалить</button></div>`);
+    document.querySelectorAll(".add-mod-entry").forEach(button => {
+        button.onclick = () => {
+            const entries = document.querySelector("#mod-entries");
+            if (!entries) return;
+            appendHtml(entries, modEntryMarkup({}, entries.querySelectorAll(".mod-entry").length));
+            renumberModEntries();
+            bindFormControls();
+        };
+    });
+    document.querySelectorAll(".remove-mod-entry").forEach(button => {
+        button.onclick = () => {
+            const entries = document.querySelectorAll(".mod-entry");
+            if (entries.length > 1) {
+                button.closest(".mod-entry").remove();
+                renumberModEntries();
+            }
+        };
+    });
+    document.querySelectorAll(".add-tag").forEach(button => {
+        button.onclick = () => {
+            const container = button.closest(".mod-entry")?.querySelector(".tag-list") || document.querySelector("#tags");
+            if (!container) return;
+            appendHtml(container, `<div class="tag-row"><input name="tagName" list="tags-list" value=""><button type="button" class="button danger remove-tag">Удалить</button></div>`);
             bindTagRows();
         };
-    }
-    bindTagRows();
-    const addVersion = document.querySelector("#add-version");
-    if (addVersion) {
-        addVersion.onclick = () => {
-            const versions = document.querySelector("#versions");
-            const index = versions.querySelectorAll("[data-version-row]").length + 1;
-            appendHtml(versions, `<div class="version-row" data-version-row><div class="field"><label>Версия ${index}</label><input name="versionName" required value=""></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="0"></div><button type="button" class="button danger remove-version">Удалить</button></div>`);
+    });
+    document.querySelectorAll(".add-version").forEach(button => {
+        button.onclick = () => {
+            const container = button.closest(".mod-entry")?.querySelector(".version-list") || document.querySelector("#versions");
+            if (!container) return;
+            appendHtml(container, `<div class="version-row" data-version-row><div class="field"><label>Версия</label><input name="versionName" required value=""></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="0"></div><button type="button" class="button danger remove-version">Удалить</button></div>`);
             bindVersionRows();
         };
-    }
+    });
+    renumberModEntries();
+    bindTagRows();
     bindVersionRows();
 }
 
-function bindSearchControls() {
-    const search = document.querySelector("#search");
-    if (search) {
-        ["search", "author-filter", "category-filter", "tag-filter"].forEach(id => {
-            const element = document.querySelector(`#${id}`);
-            if (element) element.oninput = filterMods;
-        });
-    }
-    const entitySearch = document.querySelector("#entity-search");
-    if (entitySearch) {
-        entitySearch.oninput = () => {
-            state.entityPages[state.page] = 1;
-            render();
-        };
-    }
-    const clear = document.querySelector("#clear-filters");
-    if (clear) {
-        clear.onclick = () => {
-            ["search", "author-filter", "category-filter", "tag-filter"].forEach(id => {
-                const element = document.querySelector(`#${id}`);
-                if (element) element.value = "";
-            });
-            filterMods();
-        };
-    }
-}
-
-function bind() {
-    document.querySelectorAll("form").forEach(form => { form.noValidate = true; });
-    document.querySelectorAll("[data-page]").forEach(button => {
-        button.onclick = () => { location.hash = button.dataset.page; };
+function renumberModEntries() {
+    const entries = [...document.querySelectorAll(".mod-entry")];
+    entries.forEach((entry, index) => {
+        const heading = entry.querySelector(".entry-header h4");
+        if (heading) heading.textContent = `Мод ${index + 1}`;
+        const removeButton = entry.querySelector(".remove-mod-entry");
+        if (removeButton) {
+            const isSingleEntry = entries.length === 1;
+            removeButton.hidden = isSingleEntry;
+            removeButton.disabled = isSingleEntry;
+        }
     });
-    bindModSort();
-    bindEntitySort();
-    bindPageActions();
-    document.querySelectorAll("[data-action]").forEach(button => {
-        button.onclick = () => handleAction(button.dataset.action, button.dataset).catch(error => toast(error.message, true));
-    });
-    bindFormControls();
-    bindSearchControls();
 }
 
 function bindVersionRows() {
     document.querySelectorAll(".remove-version").forEach(button => {
         button.onclick = () => {
-            const rows = document.querySelectorAll("[data-version-row]");
+            const rows = button.closest(".mod-entry") ? button.closest(".mod-entry").querySelectorAll("[data-version-row]") : document.querySelectorAll("[data-version-row]");
             if (rows.length > 1) button.closest("[data-version-row]").remove();
         };
     });
@@ -396,7 +415,7 @@ function bindVersionRows() {
 function bindTagRows() {
     document.querySelectorAll(".remove-tag").forEach(button => {
         button.onclick = () => {
-            const rows = document.querySelectorAll(".tag-row");
+            const rows = button.closest(".mod-entry") ? button.closest(".mod-entry").querySelectorAll(".tag-row") : document.querySelectorAll(".tag-row");
             if (rows.length > 1) button.closest(".tag-row").remove();
         };
     });
@@ -413,12 +432,43 @@ function modal(title, body) {
     render();
 }
 
-function modForm(mod = {}) {
+function modEntryMarkup(mod = {}, index = 0) {
     const versions = list(mod.versions).length ? mod.versions : [{ versionName: "1.0.0", downloadCount: 0 }];
-    const versionFields = versions.map((version, index) => `<div class="version-row" data-version-row><div class="field"><label>Версия ${index + 1}</label><input name="versionName" required value="${esc(version.versionName)}"></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="${version.downloadCount || 0}"></div><button type="button" class="button danger remove-version" ${versions.length === 1 ? "disabled" : ""}>Удалить</button></div>`).join("");
+    const versionFields = versions.map((version) => `<div class="version-row" data-version-row><div class="field"><label>Версия</label><input name="versionName" required value="${esc(version.versionName)}"></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="${version.downloadCount || 0}"></div><button type="button" class="button danger remove-version" ${versions.length === 1 ? "disabled" : ""}>Удалить</button></div>`).join("");
     const tags = list(mod.tags).length ? mod.tags : [""];
     const tagFields = tags.map(tag => `<div class="tag-row"><input name="tagName" list="tags-list" value="${esc(tag)}"><button type="button" class="button danger remove-tag" ${tags.length === 1 ? "disabled" : ""}>Удалить</button></div>`).join("");
-    return `<form id="mod-form" novalidate data-id="${mod.id || ""}"><div class="form-grid"><div class="field"><label>Название</label><input name="name" required maxlength="255" value="${esc(mod.name)}"></div><div class="field"><label>Автор</label><input name="authorName" list="authors-list" required value="${esc(mod.authorName)}"></div><div class="field"><label>Категория</label><input name="categoryName" list="categories-list" value="${esc(mod.categoryName)}"></div><div class="field full"><label>Теги</label><div id="tags">${tagFields}</div><button type="button" class="button" id="add-tag">＋ Добавить тег</button></div><div class="field full"><label>Описание</label><textarea name="description" required maxlength="1000">${esc(mod.description)}</textarea></div><div class="field full"><label>Версии мода</label><div id="versions">${versionFields}</div><button type="button" class="button" id="add-version">＋ Добавить версию</button></div></div><div class="modal-actions"><button type="button" class="button" data-action="close-modal">Отмена</button><button class="button primary">${mod.id ? "Сохранить" : "Создать мод"}</button></div></form>`;
+    return `<div class="mod-entry" data-mod-entry-index="${index}"><div class="entry-header"><h4>Мод ${index + 1}</h4><button type="button" class="button danger remove-mod-entry">Удалить</button></div><div class="form-grid"><div class="field"><label>Название *</label><input name="name" required maxlength="255" value="${esc(mod.name)}"></div><div class="field"><label>Автор *</label><input name="authorName" list="authors-list" required value="${esc(mod.authorName)}"></div><div class="field"><label>Категория *</label><input name="categoryName" list="categories-list" required value="${esc(mod.categoryName)}"></div><div class="field full"><label>Теги</label><div class="tag-list">${tagFields}</div><button type="button" class="button add-tag">＋ Добавить тег</button></div><div class="field full"><label>Описание *</label><textarea name="description" required maxlength="1000">${esc(mod.description)}</textarea></div><div class="field full"><label>Версии мода</label><div class="version-list">${versionFields}</div><button type="button" class="button add-version">＋ Добавить версию</button></div></div></div>`;
+}
+
+function prepareModPayload(entry) {
+    const getValue = selector => entry.querySelector(selector)?.value ?? "";
+    const versionNames = [...entry.querySelectorAll("input[name='versionName']")].map(field => field.value.trim());
+    const downloadCounts = [...entry.querySelectorAll("input[name='downloadCount']")].map(field => Number(field.value || 0));
+    const tagNames = [...entry.querySelectorAll("input[name='tagName']")].map(field => field.value.trim()).filter(Boolean);
+    const normalizedVersions = versionNames.map(value => value.toLowerCase()).filter(Boolean);
+    if (new Set(normalizedVersions).size !== normalizedVersions.length && normalizedVersions.length) {
+        throw new Error("У одного мода не может быть одинаковых версий");
+    }
+    return {
+        name: getValue("input[name='name']").trim(),
+        description: getValue("textarea[name='description']").trim(),
+        authorName: getValue("input[name='authorName']").trim(),
+        categoryNames: [getValue("input[name='categoryName']").trim()].filter(Boolean),
+        tagNames,
+        versions: versionNames.map((versionName, index) => ({ versionName: versionName.trim(), downloadCount: Number(downloadCounts[index] || 0) })).filter(version => version.versionName)
+    };
+}
+
+function modForm(mod = {}, batch = false) {
+    if (batch) {
+        const entries = Array.isArray(mod.entries) && mod.entries.length ? mod.entries : [{}];
+        return `<form id="mod-form" novalidate data-batch="true"><div id="mod-entries">${entries.map((entry, index) => modEntryMarkup(entry, index)).join("")}</div><div class="modal-actions"><button type="button" class="button add-mod-entry">＋ Добавить мод</button><button type="button" class="button" data-action="close-modal">Отмена</button><button class="button primary">Создать моды</button></div></form>`;
+    }
+    const versions = list(mod.versions).length ? mod.versions : [{ versionName: "1.0.0", downloadCount: 0 }];
+    const versionFields = versions.map((version) => `<div class="version-row" data-version-row><div class="field"><label>Версия</label><input name="versionName" required value="${esc(version.versionName)}"></div><div class="field"><label>Загрузки</label><input name="downloadCount" type="number" min="0" value="${version.downloadCount || 0}"></div><button type="button" class="button danger remove-version" ${versions.length === 1 ? "disabled" : ""}>Удалить</button></div>`).join("");
+    const tags = list(mod.tags).length ? mod.tags : [""];
+    const tagFields = tags.map(tag => `<div class="tag-row"><input name="tagName" list="tags-list" value="${esc(tag)}"><button type="button" class="button danger remove-tag" ${tags.length === 1 ? "disabled" : ""}>Удалить</button></div>`).join("");
+    return `<form id="mod-form" novalidate data-id="${mod.id || ""}"><div class="form-grid"><div class="field"><label>Название *</label><input name="name" required maxlength="255" value="${esc(mod.name)}"></div><div class="field"><label>Автор *</label><input name="authorName" list="authors-list" required value="${esc(mod.authorName)}"></div><div class="field"><label>Категория *</label><input name="categoryName" list="categories-list" required value="${esc(mod.categoryName)}"></div><div class="field full"><label>Теги</label><div class="tag-list" id="tags">${tagFields}</div><button type="button" class="button add-tag">＋ Добавить тег</button></div><div class="field full"><label>Описание *</label><textarea name="description" required maxlength="1000">${esc(mod.description)}</textarea></div><div class="field full"><label>Версии мода</label><div class="version-list" id="versions">${versionFields}</div><button type="button" class="button add-version">＋ Добавить версию</button></div></div><div class="modal-actions"><button type="button" class="button" data-action="close-modal">Отмена</button><button class="button primary">${mod.id ? "Сохранить" : "Создать мод"}</button></div></form>`;
 }
 
 function entityForm(kind, item = {}) {
@@ -434,7 +484,7 @@ function entityFormTitle(kind) {
 
 async function handleAction(action, data) {
     if (action === "close-modal") { state.modal = ""; render(); return; }
-    if (action === "new-mod") { modal("Новый мод", modForm()); return; }
+    if (action === "new-mod") { modal("Новый мод / несколько модов", modForm({}, true)); return; }
     if (action === "edit-mod") { modal("Редактирование мода", modForm(state.mods.find(mod => String(mod.id) === data.id))); return; }
     if (action === "delete-mod" && confirm(`Точно удалить мод «${data.name}» и все его версии?`)) { await api.remove(`/mods/${data.id}`); await loadData(); return; }
     if (action === "new-entity" || action === "edit-entity") {
@@ -442,37 +492,44 @@ async function handleAction(action, data) {
         modal(`${action === "edit-entity" ? "Редактирование" : "Новая"} записи`, entityForm(data.kind, item)); return;
     }
     if (action === "delete-entity" && confirm(`Точно удалить «${data.name}»?`)) {
-        await api.remove(`/${data.kind}/${data.id}`); await loadData();
+        await api.remove(`/${data.kind}/${data.id}`);
+        await loadData();
+        return;
     }
 }
 
 document.addEventListener("submit", async event => {
     event.preventDefault();
     try {
-        const form = new FormData(event.target);
-        const requiredFields = [...event.target.querySelectorAll("[required]")];
+        const target = event.target;
+        const requiredFields = [...target.querySelectorAll("[required]")];
         const emptyField = requiredFields.find(field => !String(field.value).trim());
         if (emptyField) {
             toast("Заполните обязательные поля", true);
             emptyField.focus();
             return;
         }
-        if (event.target.id === "mod-form") {
-            const id = event.target.dataset.id;
-            const versionNames = form.getAll("versionName");
-            const downloadCounts = form.getAll("downloadCount");
-            const normalizedVersions = versionNames.map(name => textValue(name).trim().toLowerCase()).filter(Boolean);
-            if (new Set(normalizedVersions).size !== normalizedVersions.length) {
-                toast("У одного мода не может быть одинаковых версий", true);
+        if (target.id === "mod-form") {
+            const isBatch = target.dataset.batch === "true";
+            const entries = isBatch ? [...target.querySelectorAll(".mod-entry")] : [target];
+            const payloads = entries.map(entry => prepareModPayload(entry));
+            if (!payloads.length) {
+                toast("Добавьте хотя бы один мод", true);
                 return;
             }
-            const tagNames = form.getAll("tagName").map(tag => textValue(tag).trim()).filter(Boolean);
-            const payload = { name: form.get("name"), description: form.get("description"), authorName: form.get("authorName"), categoryNames: [form.get("categoryName")].filter(Boolean), tagNames, versions: versionNames.map((versionName, index) => ({ versionName, downloadCount: Number(downloadCounts[index] || 0) })) };
-            if (id) await api.save(`/mods/${id}`, payload, "PUT"); else await api.save("/mods", [payload]);
+            const id = target.dataset.id;
+            if (id) {
+                await api.save(`/mods/${id}`, payloads[0], "PUT");
+            } else if (isBatch) {
+                await api.save("/mods", payloads);
+            } else {
+                await api.save("/mods", [payloads[0]]);
+            }
         } else {
-            const kind = event.target.dataset.kind;
+            const form = new FormData(target);
+            const kind = target.dataset.kind;
             const endpoint = `/${kind}`;
-            const id = event.target.dataset.id;
+            const id = target.dataset.id;
             await api.save(id ? `${endpoint}/${id}` : endpoint, { name: form.get("name") }, id ? "PUT" : "POST");
         }
         state.modal = ""; await loadData(); toast("Изменения сохранены");
@@ -495,3 +552,49 @@ window.addEventListener("hashchange", () => {
 document.addEventListener("DOMContentLoaded", () => {
     loadData();
 });
+
+function bindSearchControls() {
+    const controls = [
+        document.querySelector("#search"),
+        document.querySelector("#author-filter"),
+        document.querySelector("#category-filter"),
+        document.querySelector("#tag-filter")
+    ].filter(Boolean);
+
+    controls.forEach(element => {
+        element.oninput = () => { state.modPage = 1; render(); };
+        element.onchange = () => { state.modPage = 1; render(); };
+    });
+
+    const clearButton = document.querySelector("#clear-filters");
+    if (clearButton) {
+        clearButton.onclick = () => {
+            const ids = ["#search", "#author-filter", "#category-filter", "#tag-filter"];
+            ids.forEach(id => {
+                const field = document.querySelector(id);
+                if (field) field.value = "";
+            });
+            state.modPage = 1;
+            render();
+        };
+    }
+}
+
+function bind() {
+    document.querySelectorAll("form").forEach(form => {
+        form.noValidate = true;
+    });
+    document.querySelectorAll("[data-page]").forEach(button => {
+        button.onclick = () => {
+            location.hash = button.dataset.page;
+        };
+    });
+    bindModSort();
+    bindEntitySort();
+    bindPageActions();
+    document.querySelectorAll("[data-action]").forEach(button => {
+        button.onclick = () => handleAction(button.dataset.action, button.dataset).catch(error => toast(error.message, true));
+    });
+    bindFormControls();
+    bindSearchControls();
+}

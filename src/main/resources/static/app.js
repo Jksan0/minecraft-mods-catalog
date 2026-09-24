@@ -483,57 +483,111 @@ function entityFormTitle(kind) {
 }
 
 async function handleAction(action, data) {
-    if (action === "close-modal") { state.modal = ""; render(); return; }
-    if (action === "new-mod") { modal("Новый мод / несколько модов", modForm({}, true)); return; }
-    if (action === "edit-mod") { modal("Редактирование мода", modForm(state.mods.find(mod => String(mod.id) === data.id))); return; }
-    if (action === "delete-mod" && confirm(`Точно удалить мод «${data.name}» и все его версии?`)) { await api.remove(`/mods/${data.id}`); await loadData(); return; }
-    if (action === "new-entity" || action === "edit-entity") {
-        const item = action === "edit-entity" ? state[data.kind].find(entry => String(entry.id) === data.id) : {};
-        modal(`${action === "edit-entity" ? "Редактирование" : "Новая"} записи`, entityForm(data.kind, item)); return;
+    switch (action) {
+        case "close-modal":
+            state.modal = "";
+            render();
+            return;
+        case "new-mod":
+            modal("Новый мод / несколько модов", modForm({}, true));
+            return;
+        case "edit-mod": {
+            const mod = state.mods.find(item => String(item.id) === data.id);
+            modal("Редактирование мода", modForm(mod));
+            return;
+        }
+        case "delete-mod": {
+            if (!confirm(`Точно удалить мод «${data.name}» и все его версии?`)) {
+                return;
+            }
+            await api.remove(`/mods/${data.id}`);
+            await loadData();
+            break;
+        }
+        case "new-entity":
+        case "edit-entity": {
+            const item = action === "edit-entity" ? state[data.kind].find(entry => String(entry.id) === data.id) : {};
+            const title = action === "edit-entity" ? "Редактирование" : "Новая";
+            modal(`${title} записи`, entityForm(data.kind, item));
+            return;
+        }
+        case "delete-entity": {
+            if (!confirm(`Точно удалить «${data.name}»?`)) {
+                return;
+            }
+            await api.remove(`/${data.kind}/${data.id}`);
+            await loadData();
+            break;
+        }
+        default:
+            return;
     }
-    if (action === "delete-entity" && confirm(`Точно удалить «${data.name}»?`)) {
-        await api.remove(`/${data.kind}/${data.id}`);
-        await loadData();
+}
+
+function validateSubmitForm(target) {
+    const requiredFields = [...target.querySelectorAll("[required]")];
+    const emptyField = requiredFields.find(field => !String(field.value).trim());
+
+    if (emptyField) {
+        toast("Заполните обязательные поля", true);
+        emptyField.focus();
+        return false;
+    }
+
+    return true;
+}
+
+async function submitModForm(target) {
+    const isBatch = target.dataset.batch === "true";
+    const entries = isBatch ? [...target.querySelectorAll(".mod-entry")] : [target];
+    const payloads = entries.map(entry => prepareModPayload(entry));
+
+    if (!payloads.length) {
+        throw new Error("Добавьте хотя бы один мод");
+    }
+
+    const id = target.dataset.id;
+    if (id) {
+        await api.save(`/mods/${id}`, payloads[0], "PUT");
         return;
     }
+    if (isBatch) {
+        await api.save("/mods", payloads);
+        return;
+    }
+    await api.save("/mods", [payloads[0]]);
+}
+
+async function submitEntityForm(target) {
+    const form = new FormData(target);
+    const kind = target.dataset.kind;
+    const endpoint = `/${kind}`;
+    const id = target.dataset.id;
+    const payload = { name: String(form.get("name") ?? "").trim() };
+
+    await api.save(id ? `${endpoint}/${id}` : endpoint, payload, id ? "PUT" : "POST");
 }
 
 document.addEventListener("submit", async event => {
     event.preventDefault();
+    const target = event.target;
+
+    if (!validateSubmitForm(target)) {
+        return;
+    }
+
     try {
-        const target = event.target;
-        const requiredFields = [...target.querySelectorAll("[required]")];
-        const emptyField = requiredFields.find(field => !String(field.value).trim());
-        if (emptyField) {
-            toast("Заполните обязательные поля", true);
-            emptyField.focus();
-            return;
-        }
         if (target.id === "mod-form") {
-            const isBatch = target.dataset.batch === "true";
-            const entries = isBatch ? [...target.querySelectorAll(".mod-entry")] : [target];
-            const payloads = entries.map(entry => prepareModPayload(entry));
-            if (!payloads.length) {
-                toast("Добавьте хотя бы один мод", true);
-                return;
-            }
-            const id = target.dataset.id;
-            if (id) {
-                await api.save(`/mods/${id}`, payloads[0], "PUT");
-            } else if (isBatch) {
-                await api.save("/mods", payloads);
-            } else {
-                await api.save("/mods", [payloads[0]]);
-            }
+            await submitModForm(target);
         } else {
-            const form = new FormData(target);
-            const kind = target.dataset.kind;
-            const endpoint = `/${kind}`;
-            const id = target.dataset.id;
-            await api.save(id ? `${endpoint}/${id}` : endpoint, { name: form.get("name") }, id ? "PUT" : "POST");
+            await submitEntityForm(target);
         }
-        state.modal = ""; await loadData(); toast("Изменения сохранены");
-    } catch (error) { toast(error.message, true); }
+        state.modal = "";
+        await loadData();
+        toast("Изменения сохранены");
+    } catch (error) {
+        toast(error.message, true);
+    }
 });
 
 function toast(message, error = false) {

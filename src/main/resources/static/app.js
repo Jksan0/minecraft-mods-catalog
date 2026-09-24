@@ -563,7 +563,8 @@ async function submitEntityForm(target) {
     const kind = target.dataset.kind;
     const endpoint = `/${kind}`;
     const id = target.dataset.id;
-    const payload = { name: String(form.get("name") ?? "").trim() };
+    const rawName = form.get("name");
+    const payload = { name: typeof rawName === "string" ? rawName.trim() : "" };
 
     await api.save(id ? `${endpoint}/${id}` : endpoint, payload, id ? "PUT" : "POST");
 }

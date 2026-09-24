@@ -31,3 +31,5 @@ build/
 
 logs
 cp.txt
+.env
+.dockerignore

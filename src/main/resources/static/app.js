@@ -617,8 +617,14 @@ function bindSearchControls() {
     ].filter(Boolean);
 
     controls.forEach(element => {
-        element.oninput = () => { state.modPage = 1; render(); };
-        element.onchange = () => { state.modPage = 1; render(); };
+        element.oninput = () => {
+            state.modPage = 1;
+            filterMods();
+        };
+        element.onchange = () => {
+            state.modPage = 1;
+            filterMods();
+        };
     });
 
     const clearButton = document.querySelector("#clear-filters");
@@ -630,7 +636,7 @@ function bindSearchControls() {
                 if (field) field.value = "";
             });
             state.modPage = 1;
-            render();
+            filterMods();
         };
     }
 }

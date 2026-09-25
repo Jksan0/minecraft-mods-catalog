@@ -33,7 +33,7 @@ const api = {
     remove: path => api.request(path, { method: "DELETE" })
 };
 
-const state = { page: location.hash.slice(1) || "mods", mods: [], authors: [], categories: [], tags: [], versions: [], loading: false, modPage: 1, pageSize: 7, entityPages: { authors: 1, categories: 1, tags: 1 }, entityPageSize: 10, sortDirection: "asc", entitySortDirections: { authors: "asc", categories: "asc", tags: "asc" } };
+const state = { page: location.hash.slice(1) || "mods", mods: [], authors: [], categories: [], tags: [], versions: [], loading: false, modPage: 1, pageSize: 7, entityPages: { authors: 1, categories: 1, tags: 1 }, entityPageSize: 10, sortDirection: "asc", entitySortDirections: { authors: "asc", categories: "asc", tags: "asc" }, asyncTask: null };
 const labels = { mods: "Моды", authors: "Авторы", categories: "Категории", tags: "Теги" };
 const esc = value => String(value == null ? "" : value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 const list = value => Array.isArray(value) ? value : [];
@@ -128,17 +128,28 @@ const pageIcon = {
     tags: "◇"
 };
 
+function asyncTaskWidget() {
+     if (!state.asyncTask) return "";
+     return `<div class="async-widget ${state.asyncTask.done ? "done" : ""}">
+         <div class="async-info">
+             <span class="async-label">${esc(state.asyncTask.label || "Задача")}</span>
+             <span class="async-status">${state.asyncTask.done ? '✓ Завершено' : '⟳ Выполняется...'}</span>
+         </div>
+         ${state.asyncTask.done ? `<button class="icon-button" data-action="close-task">×</button>` : ""}
+     </div>`;
+ }
+
 function appShell(content) {
-    const navigation = Object.entries(labels)
-        .map(([key, label]) => `<button class="${state.page === key ? "active" : ""}" data-page="${key}">${pageIcon[key]} &nbsp;${label}</button>`)
-        .join("");
-    return `<div class="shell">
-        <header class="topbar"><div class="brand"><div class="brand-mark">✦</div><div><h1>ModAtlas</h1><p>каталог Minecraft модов</p></div></div>
-        </header>
-        <div class="layout"><aside class="sidebar"><div class="nav-label">Рабочая область</div><nav class="nav">
-        ${navigation}
-        </nav></aside><main class="main">${content}</main></div></div>`;
-}
+     const navigation = Object.entries(labels)
+         .map(([key, label]) => `<button class="${state.page === key ? "active" : ""}" data-page="${key}">${pageIcon[key]} &nbsp;${label}</button>`)
+         .join("");
+     return `<div class="shell">
+         <header class="topbar"><div class="brand"><div class="brand-mark">✦</div><div><h1>ModAtlas</h1><p>каталог Minecraft модов</p></div></div>${asyncTaskWidget()}
+         </header>
+         <div class="layout"><aside class="sidebar"><div class="nav-label">Рабочая область</div><nav class="nav">
+         ${navigation}
+         </nav></aside><main class="main">${content}</main></div></div>`;
+ }
 
 async function loadData() {
     state.loading = true;
@@ -187,9 +198,9 @@ function modTableRow(mod, withActions) {
 }
 
 function modsPage() {
-    return `<div class="page-heading"><div><div class="eyebrow">Каталог</div><h2>Моды</h2></div><button class="button primary" data-action="new-mod">＋ Добавить мод(ы)</button></div>
-    <section class="panel"><div class="toolbar"><input id="search" placeholder="Поиск по названию и описанию"><input id="author-filter" list="authors-list" placeholder="Автор"><input id="category-filter" list="categories-list" placeholder="Категория"><input id="tag-filter" list="tags-list" placeholder="Тег"><button class="button" id="clear-filters">Сбросить</button></div>${catalogContent()}${dataLists()}</section>`;
-}
+     return `<div class="page-heading"><div><div class="eyebrow">Каталог</div><h2>Моды</h2></div><div style="display: flex; gap: 12px;"><button class="button" data-action="demo-async">⟳ Тест операции</button><button class="button primary" data-action="new-mod">＋ Добавить мод(ы)</button></div></div>
+     <section class="panel"><div class="toolbar"><input id="search" placeholder="Поиск по названию и описанию"><input id="author-filter" list="authors-list" placeholder="Автор"><input id="category-filter" list="categories-list" placeholder="Категория"><input id="tag-filter" list="tags-list" placeholder="Тег"><button class="button" id="clear-filters">Сбросить</button></div>${catalogContent()}${dataLists()}</section>`;
+ }
 
 function dataLists() {
     const options = items => items.map(item => `<option value="${esc(item.name)}">`).join("");
@@ -482,47 +493,94 @@ function entityFormTitle(kind) {
     return "тега";
 }
 
+async function startAsyncTask(delayMs, label) {
+     try {
+         const response = await api.save("/demo/async", { delayMs, label }, "POST");
+         state.asyncTask = { taskId: response.taskId, label, done: false };
+         render();
+         pollAsyncTaskStatus(response.taskId);
+     } catch (error) {
+         toast(error.message, true);
+     }
+ }
+
+ async function pollAsyncTaskStatus(taskId) {
+      const interval = setInterval(async () => {
+          if (!state.asyncTask || state.asyncTask.taskId !== taskId) {
+              clearInterval(interval);
+              return;
+          }
+          try {
+              const status = await api.get(`/demo/async/${taskId}`);
+              if (state.asyncTask) {
+                  const isComplete = status.status === "COMPLETED" || status.status === "FAILED";
+                  state.asyncTask.done = isComplete;
+                  render();
+              }
+              const isDone = status.status === "COMPLETED" || status.status === "FAILED";
+              if (isDone) {
+                  clearInterval(interval);
+                  if (status.status === "COMPLETED") {
+                      toast("Задача завершена успешно");
+                  } else if (status.status === "FAILED") {
+                      toast("Задача завершена с ошибкой: " + (status.result || "неизвестная ошибка"), true);
+                  }
+              }
+          } catch (error) {
+              clearInterval(interval);
+          }
+      }, 300);
+  }
+
 async function handleAction(action, data) {
-    switch (action) {
-        case "close-modal":
-            state.modal = "";
-            render();
-            return;
-        case "new-mod":
-            modal("Новый мод / несколько модов", modForm({}, true));
-            return;
-        case "edit-mod": {
-            const mod = state.mods.find(item => String(item.id) === data.id);
-            modal("Редактирование мода", modForm(mod));
-            return;
-        }
-        case "delete-mod": {
-            if (!confirm(`Точно удалить мод «${data.name}» и все его версии?`)) {
-                return;
-            }
-            await api.remove(`/mods/${data.id}`);
-            await loadData();
-            break;
-        }
-        case "new-entity":
-        case "edit-entity": {
-            const item = action === "edit-entity" ? state[data.kind].find(entry => String(entry.id) === data.id) : {};
-            const title = action === "edit-entity" ? "Редактирование" : "Новая";
-            modal(`${title} записи`, entityForm(data.kind, item));
-            return;
-        }
-        case "delete-entity": {
-            if (!confirm(`Точно удалить «${data.name}»?`)) {
-                return;
-            }
-            await api.remove(`/${data.kind}/${data.id}`);
-            await loadData();
-            break;
-        }
-        default:
-            return;
-    }
-}
+     switch (action) {
+         case "close-modal":
+             state.modal = "";
+             render();
+             return;
+         case "close-task":
+             state.asyncTask = null;
+             render();
+             return;
+         case "new-mod":
+             modal("Новый мод / несколько модов", modForm({}, true));
+             return;
+         case "edit-mod": {
+             const mod = state.mods.find(item => String(item.id) === data.id);
+             modal("Редактирование мода", modForm(mod));
+             return;
+         }
+         case "delete-mod": {
+             if (!confirm(`Точно удалить мод «${data.name}» и все его версии?`)) {
+                 return;
+             }
+             await api.remove(`/mods/${data.id}`);
+             await loadData();
+             break;
+         }
+         case "new-entity":
+         case "edit-entity": {
+             const item = action === "edit-entity" ? state[data.kind].find(entry => String(entry.id) === data.id) : {};
+             const title = action === "edit-entity" ? "Редактирование" : "Новая";
+             modal(`${title} записи`, entityForm(data.kind, item));
+             return;
+         }
+         case "delete-entity": {
+             if (!confirm(`Точно удалить «${data.name}»?`)) {
+                 return;
+             }
+             await api.remove(`/${data.kind}/${data.id}`);
+             await loadData();
+             break;
+         }
+         case "demo-async": {
+             await startAsyncTask(5500, "Демо-операция");
+             return;
+         }
+         default:
+             return;
+     }
+ }
 
 function validateSubmitForm(target) {
     const requiredFields = [...target.querySelectorAll("[required]")];

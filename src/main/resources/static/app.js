@@ -504,33 +504,34 @@ async function startAsyncTask(delayMs, label) {
      }
  }
 
- async function pollAsyncTaskStatus(taskId) {
-      const interval = setInterval(async () => {
-          if (!state.asyncTask || state.asyncTask.taskId !== taskId) {
-              clearInterval(interval);
-              return;
-          }
-          try {
-              const status = await api.get(`/demo/async/${taskId}`);
-              if (state.asyncTask) {
-                  const isComplete = status.status === "COMPLETED" || status.status === "FAILED";
-                  state.asyncTask.done = isComplete;
-                  render();
-              }
-              const isDone = status.status === "COMPLETED" || status.status === "FAILED";
-              if (isDone) {
-                  clearInterval(interval);
-                  if (status.status === "COMPLETED") {
-                      toast("Задача завершена успешно");
-                  } else if (status.status === "FAILED") {
-                      toast("Задача завершена с ошибкой: " + (status.result || "неизвестная ошибка"), true);
-                  }
-              }
-          } catch (error) {
-              clearInterval(interval);
-          }
-      }, 300);
-  }
+  async function pollAsyncTaskStatus(taskId) {
+       const interval = setInterval(async () => {
+           if (!state.asyncTask || state.asyncTask.taskId !== taskId) {
+               clearInterval(interval);
+               return;
+           }
+           try {
+               const status = await api.get(`/demo/async/${taskId}`);
+               if (state.asyncTask) {
+                   const isComplete = status.status === "COMPLETED" || status.status === "FAILED";
+                   state.asyncTask.done = isComplete;
+                   render();
+               }
+               const isDone = status.status === "COMPLETED" || status.status === "FAILED";
+               if (isDone) {
+                   clearInterval(interval);
+                   if (status.status === "COMPLETED") {
+                       toast("Задача завершена успешно");
+                   } else if (status.status === "FAILED") {
+                       toast("Задача завершена с ошибкой: " + (status.result || "неизвестная ошибка"), true);
+                   }
+               }
+           } catch (error) {
+               // Ошибка сети при опросе статуса - просто останавливаем опрос, т.к. пользователь может закрыть виджет
+               clearInterval(interval);
+           }
+       }, 300);
+   }
 
 async function handleAction(action, data) {
      switch (action) {

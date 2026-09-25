@@ -281,11 +281,11 @@ function entityTable(kind, items) {
     const sortedItems = sortByName(items, direction);
     const arrow = direction === "asc" ? "↑" : "↓";
     const rows = sortedItems.map(item => entityTableRow(kind, item)).join("");
-    return `<div class="table-wrap"><table><thead><tr><th>ID</th><th><button class="sort-button" data-entity-sort="${kind}">НАЗВАНИЕ ${arrow}</button></th><th>Связи</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="table-wrap"><table><thead><tr><th><button class="sort-button" data-entity-sort="${kind}">НАЗВАНИЕ ${arrow}</button></th><th>Связи</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function entityTableRow(kind, item) {
-    return `<tr><td class="muted">#${item.id}</td><td><strong>${esc(item.name)}</strong></td><td class="tag-green">${getEntityRelationMarkup(kind, item.name)}</td><td><div class="actions"><button class="button action-edit" data-action="edit-entity" data-kind="${kind}" data-id="${item.id}">Изменить</button><button class="button danger action-delete" data-action="delete-entity" data-kind="${kind}" data-id="${item.id}" data-name="${esc(item.name)}">Удалить</button></div></td></tr>`;
+    return `<tr><td><strong>${esc(item.name)}</strong></td><td class="tag-green">${getEntityRelationMarkup(kind, item.name)}</td><td><div class="actions"><button class="button action-edit" data-action="edit-entity" data-kind="${kind}" data-id="${item.id}">Изменить</button><button class="button danger action-delete" data-action="delete-entity" data-kind="${kind}" data-id="${item.id}" data-name="${esc(item.name)}">Удалить</button></div></td></tr>`;
 }
 
 function entityPagination(kind, pages) {

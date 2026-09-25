@@ -526,8 +526,7 @@ async function startAsyncTask(delayMs, label) {
                        toast("Задача завершена с ошибкой: " + (status.result || "неизвестная ошибка"), true);
                    }
                }
-           } catch (error) {
-               // Ошибка сети при опросе статуса - просто останавливаем опрос, т.к. пользователь может закрыть виджет
+           } catch {
                clearInterval(interval);
            }
        }, 300);
